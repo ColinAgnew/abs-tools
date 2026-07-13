@@ -1,26 +1,20 @@
 services:
-  abs-auto-match:
+  abs-tools-python:
     image: ghcr.io/colinagnew/abs-tools-python:latest
     user: "1000:1000"
-    env_file: ../env/abs-tools.env
+    env_file: /etc/abs-tools/abs-tools.env
     volumes:
       - /var/log/abs-tools:/var/log/abs-tools
       - /var/lib/abs-tools:/var/lib/abs-tools
+    restart: unless-stopped
 
-  abs-chapter-match:
-    image: ghcr.io/colinagnew/abs-tools-python:latest
-    user: "1000:1000"
-    env_file: ../env/abs-tools.env
-    volumes:
-      - /var/log/abs-tools:/var/log/abs-tools
-      - /var/lib/abs-tools:/var/lib/abs-tools
-
-  epub-convert:
+  abs-tools-epub:
     image: ghcr.io/colinagnew/abs-tools-epub:latest
     user: "1000:1000"
-    env_file: ../env/epub-convert.env
+    env_file: /etc/abs-tools/epub-convert.env
     volumes:
       - /var/log/abs-tools:/var/log/abs-tools
       - /var/lib/abs-tools:/var/lib/abs-tools
-      # EBOOKS_DIR must match the path in epub-convert.env so the bind mount lines up
+      # Must match EBOOKS_DIR in epub-convert.env
       - /zfs/media_root/ebooks:/zfs/media_root/ebooks
+    restart: unless-stopped
