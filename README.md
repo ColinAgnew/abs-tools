@@ -49,6 +49,7 @@ All available variables with their defaults:
 | Variable | Default | Description |
 |---|---|---|
 | **General** | | |
+| `LOG_LEVEL` | `INFO` | Log verbosity: `DEBUG`, `INFO`, `WARN`, `ERROR`. `DEBUG` logs every queued item; `INFO` is the default. |
 | `ENABLE_AUTO_MATCH` | `true` | Enable/disable abs-auto-match |
 | `ENABLE_CHAPTER_MATCH` | `true` | Enable/disable abs-chapter-match |
 | `ENABLE_EPUB_CONVERT` | `true` | Enable/disable epub-convert |

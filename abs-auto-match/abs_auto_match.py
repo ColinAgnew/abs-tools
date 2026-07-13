@@ -26,6 +26,9 @@ STATE_FILE          = os.environ.get("STATE_FILE", "/var/lib/abs-tools/auto-matc
 BATCH_SIZE          = int(os.environ.get("AUTOMATCH_BATCH_SIZE", "25"))
 BATCH_DELAY         = float(os.environ.get("AUTOMATCH_BATCH_DELAY", "10"))
 FALLBACK_DELAY      = float(os.environ.get("AUTOMATCH_FALLBACK_DELAY", "60"))
+LOG_LEVEL           = os.environ.get("LOG_LEVEL", "INFO").upper()
+
+_LEVELS = {"DEBUG": 0, "INFO": 1, "WARN": 2, "ERROR": 3}
 
 HEADERS = {"Authorization": f"Bearer {ABS_TOKEN}"}
 LIBRARIES = {"audiobooks": AUDIOBOOKS_LIB_ID, "ebooks": EBOOKS_LIB_ID}
@@ -42,9 +45,10 @@ LIBRARY_PROVIDERS = {
 }
 
 
-def log(msg):
-    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-    print(f"[{ts}] {msg}", flush=True)
+def log(msg, level="INFO"):
+    if _LEVELS.get(level, 1) >= _LEVELS.get(LOG_LEVEL, 1):
+        ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+        print(f"[{ts}] [{level}] {msg}", flush=True)
 
 
 def load_state():
@@ -96,7 +100,7 @@ def quickmatch(item_ids, provider=None):
     try:
         return resp.json()
     except ValueError:
-        log(f"Quickmatch unexpected response ({resp.status_code}): {resp.text[:300]}")
+        log(f"Quickmatch unexpected response ({resp.status_code}): {resp.text[:300]}", level="WARN")
         return {}
 
 
@@ -104,7 +108,7 @@ def run_batches(ids, provider, label):
     batches = [ids[i:i + BATCH_SIZE] for i in range(0, len(ids), BATCH_SIZE)]
     for idx, batch in enumerate(batches):
         if idx > 0:
-            log(f"Waiting {BATCH_DELAY}s before next batch...")
+            log(f"Waiting {BATCH_DELAY}s before next batch...", level="DEBUG")
             time.sleep(BATCH_DELAY)
         log(f"{label} batch {idx + 1}/{len(batches)} ({len(batch)} items)")
         quickmatch(batch, provider)
@@ -119,7 +123,7 @@ def process_library(name, library_id, full, state):
 
     since_ms = None if full else state.get(name, {}).get("last_added_at")
     if since_ms:
-        log(f"Checking items added after epoch ms {since_ms}")
+        log(f"Checking items added after epoch ms {since_ms}", level="DEBUG")
 
     items = get_items(library_id, since_ms=since_ms)
     log(f"{len(items)} item(s) to check")
@@ -130,7 +134,7 @@ def process_library(name, library_id, full, state):
     if to_match:
         for i in to_match:
             title = i.get("media", {}).get("metadata", {}).get("title", i["id"])
-            log(f"  Queuing: {title}")
+            log(f"  Queuing: {title}", level="DEBUG")
 
         run_batches([i["id"] for i in to_match], primary, "Primary")
 
@@ -146,7 +150,7 @@ def process_library(name, library_id, full, state):
                 log(f"{len(still_missing)} still missing after primary pass — trying fallback provider")
                 for i in still_missing:
                     title = i.get("media", {}).get("metadata", {}).get("title", i["id"])
-                    log(f"  Fallback: {title}")
+                    log(f"  Fallback: {title}", level="DEBUG")
                 run_batches([i["id"] for i in still_missing], fallback, "Fallback")
             else:
                 log("All items matched in primary pass")
@@ -182,7 +186,7 @@ def main():
         try:
             state[name] = process_library(name, library_id, args.full, state)
         except Exception as e:
-            log(f"ERROR processing {name}: {e}")
+            log(f"ERROR processing {name}: {e}", level="ERROR")
     save_state(state)
 
 

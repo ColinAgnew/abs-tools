@@ -26,13 +26,17 @@ DISABLE_RATE_PROTECTION = os.environ.get("DISABLE_RATE_PROTECTION", "false").low
 SEARCH_FOR_ASIN     = os.environ.get("SEARCH_FOR_ASIN", "true").lower() == "true"
 USE_TRACKS_AS_CHAPTERS = os.environ.get("USE_TRACKS_AS_CHAPTERS", "false").lower() == "true"
 STATE_FILE          = os.environ.get("STATE_FILE", "/var/lib/abs-tools/chapter-match-state.json")
+LOG_LEVEL           = os.environ.get("LOG_LEVEL", "INFO").upper()
+
+_LEVELS = {"DEBUG": 0, "INFO": 1, "WARN": 2, "ERROR": 3}
 
 HEADERS = {"Authorization": f"Bearer {ABS_TOKEN}"}
 
 
-def log(msg):
-    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-    print(f"[{ts}] {msg}", flush=True)
+def log(msg, level="INFO"):
+    if _LEVELS.get(level, 1) >= _LEVELS.get(LOG_LEVEL, 1):
+        ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+        print(f"[{ts}] [{level}] {msg}", flush=True)
 
 
 def load_state():
@@ -57,7 +61,7 @@ def get_library_items(since_ms=None):
         timeout=15,
     )
     if resp.status_code != 200:
-        log(f"Error fetching library items: {resp.status_code}")
+        log(f"Error fetching library items: {resp.status_code}", level="ERROR")
         return []
     items = resp.json().get("results", [])
     if since_ms is not None:
@@ -72,7 +76,7 @@ def match_book(item):
     authors = metadata.get("authorName", "Unknown Author")
     result = {"id": book_id, "title": title, "status": "ERROR", "comment": "Unknown Error", "asin": "N/A"}
 
-    log(f"\n--- Processing: {title} ---")
+    log(f"Processing: {title}", level="DEBUG")
 
     # Resolve ASIN
     if not metadata.get("asin"):
@@ -85,17 +89,17 @@ def match_book(item):
                 timeout=15,
             )
             if search_resp.status_code != 200 or not search_resp.json():
-                log(f"ASIN search failed for '{title}'")
+                log(f"ASIN search failed for '{title}'", level="WARN")
                 result["comment"] = "ASIN retrieval failed"
                 return result
             asin = search_resp.json()[0].get("asin")
             if not asin:
-                log(f"No ASIN in search results for '{title}'")
+                log(f"No ASIN in search results for '{title}'", level="WARN")
                 result["comment"] = "ASIN retrieval failed - no ASIN in results"
                 return result
             item["media"]["metadata"]["asin"] = asin
             metadata["asin"] = asin
-            log(f"ASIN found via search: {asin}")
+            log(f"ASIN found via search: {asin} for '{title}'")
 
     # Still no ASIN after search — try tracks as chapters fallback
     if not metadata.get("asin"):
@@ -116,13 +120,13 @@ def match_book(item):
 
         tracks = book_resp.json()["media"].get("audioFiles", [])
         if len(tracks) <= 1:
-            log(f"Not enough tracks for '{title}'")
+            log(f"Not enough tracks for '{title}'", level="DEBUG")
             result["comment"] = "Tracks retrieval failed"
             return result
 
         current_chapters_num = item["media"].get("numChapters", 0)
         if current_chapters_num != 0 and abs(current_chapters_num - len(tracks)) <= CHAPTER_THRESHOLD:
-            log(f"Chapters fine for '{title}'")
+            log(f"Chapters already correct for '{title}'", level="DEBUG")
             result["status"] = "FINISHED"
             result["comment"] = "No chapters to update"
             return result
@@ -163,23 +167,23 @@ def match_book(item):
         timeout=15,
     )
     if chapter_resp.status_code != 200 or chapter_resp.json().get("error"):
+        log(f"Error fetching chapters for '{title}': {chapter_resp.status_code}", level="ERROR")
         result["comment"] = "Chapters retrieval failed"
-        log(f"Error fetching chapters for '{title}': {chapter_resp.status_code}")
         return result
 
     chapters = chapter_resp.json().get("chapters", [])
     if not chapters:
-        result["comment"] = "No chapters found"
         log(f"No chapters found for '{title}'")
+        result["comment"] = "No chapters found"
         return result
 
-    log(f"Found {len(chapters)} chapters for '{title}'")
+    log(f"Found {len(chapters)} chapters for '{title}'", level="DEBUG")
     current_chapters_num = item["media"].get("numChapters", 0)
 
     if current_chapters_num != 0 and abs(current_chapters_num - len(chapters)) <= CHAPTER_THRESHOLD:
+        log(f"Chapters already correct for '{title}'", level="DEBUG")
         result["status"] = "FINISHED"
         result["comment"] = "No chapters to update"
-        log(f"Chapters already correct for '{title}'")
         return result
 
     log(f"Updating chapters for '{title}' (current: {current_chapters_num}, found: {len(chapters)})")
@@ -204,7 +208,7 @@ def match_book(item):
         log(f"Chapters updated for '{title}'")
     else:
         result["comment"] = "Chapters update failed"
-        log(f"Failed to update chapters for '{title}': {update_resp.status_code}")
+        log(f"Failed to update chapters for '{title}': {update_resp.status_code}", level="ERROR")
 
     return result
 
@@ -218,7 +222,7 @@ def main():
     state = load_state()
     since_ms = None if args.full else state.get("last_added_at")
     if since_ms:
-        log(f"Incremental run: checking items added after epoch ms {since_ms}")
+        log(f"Incremental run: checking items added after epoch ms {since_ms}", level="DEBUG")
     else:
         log("Full run: processing entire audiobooks library")
 
@@ -236,16 +240,13 @@ def main():
     state["last_check"] = datetime.now(timezone.utc).isoformat()
     save_state(state)
 
-    log("\n--- Summary ---")
+    log("--- Summary ---")
     for info in book_info.values():
-        log(f"{info['title']} ({info['status']}): {info['comment']}")
-        log(f"  {ABS_HOST}/item/{info['id']}")
+        log(f"  {info['status']}: {info['title']} — {info['comment']}")
 
-    failed = [v for v in book_info.values() if v["status"] != "FINISHED"]
+    failed = [v for v in book_info.values() if v["status"] not in ("FINISHED",)]
     if failed:
-        log("\n--- Failed ---")
-        for info in failed:
-            log(f"{info['title']} ({info['status']}): {info['comment']}")
+        log(f"{len(failed)} item(s) did not finish successfully", level="WARN")
 
 
 if __name__ == "__main__":

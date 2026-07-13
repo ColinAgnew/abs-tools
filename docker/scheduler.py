@@ -11,10 +11,14 @@ import threading
 import time
 from datetime import datetime, timezone
 
+LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
+_LEVELS = {"DEBUG": 0, "INFO": 1, "WARN": 2, "ERROR": 3}
 
-def log(msg):
-    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-    print(f"[scheduler] {ts} {msg}", flush=True)
+
+def log(msg, level="INFO"):
+    if _LEVELS.get(level, 1) >= _LEVELS.get(LOG_LEVEL, 1):
+        ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+        print(f"[scheduler] [{level}] {ts} {msg}", flush=True)
 
 
 def field_matches(field, value):
@@ -43,19 +47,22 @@ def cron_matches(expr, now):
 
 def run_job(name, cmd):
     log_file = f"/var/log/abs-tools/{name}.log"
+    env = os.environ.copy()
+    env["PYTHONUNBUFFERED"] = "1"
     try:
         with subprocess.Popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env
         ) as proc:
             with open(log_file, "a") as f:
                 for line in proc.stdout:
                     line = line.rstrip("\n")
-                    print(line, flush=True)
-                    f.write(line + "\n")
+                    out = f"[{name}] {line}"
+                    print(out, flush=True)
+                    f.write(out + "\n")
                     f.flush()
         log(f"{name} finished (exit {proc.returncode})")
     except Exception as e:
-        log(f"{name} error: {e}")
+        log(f"{name} error: {e}", level="ERROR")
 
 
 _running = set()
@@ -66,7 +73,7 @@ def run_job_async(name, cmd):
     key = f"{name}:{' '.join(cmd)}"
     with _lock:
         if key in _running:
-            log(f"Skipping {name} — previous run still in progress")
+            log(f"Skipping {name} — previous run still in progress", level="WARN")
             return
         _running.add(key)
 
@@ -112,7 +119,7 @@ def main():
         log("[-] epub-convert disabled")
 
     if not jobs:
-        log("No jobs enabled. Exiting.")
+        log("No jobs enabled. Exiting.", level="ERROR")
         sys.exit(1)
 
     log("=== Scheduler running ===")

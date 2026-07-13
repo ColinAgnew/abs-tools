@@ -23,9 +23,22 @@ FULL_RUN=false
 [[ "${1:-}" == "--full" ]] && FULL_RUN=true
 
 ABS_AUTH="Authorization: Bearer ${ABS_TOKEN}"
+LOG_LEVEL="${LOG_LEVEL:-INFO}"
 
+_log_level_num() {
+    case "$1" in
+        DEBUG) echo 0 ;; INFO) echo 1 ;; WARN) echo 2 ;; ERROR) echo 3 ;; *) echo 1 ;;
+    esac
+}
+_current_level=$(_log_level_num "$LOG_LEVEL")
 
-log() { echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] $*"; }
+log() {
+    local level="$1"; shift
+    local msg="$*"
+    local num
+    num=$(_log_level_num "$level")
+    [ "$num" -ge "$_current_level" ] && echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] [$level] $msg"
+}
 
 convert_epub() {
     local f="$1"
@@ -39,16 +52,16 @@ convert_epub() {
     [[ "$version" == "3" ]] && return 0
 
     if [[ -f "$out" ]]; then
-        log "SKIP (already converted): $f"
+        log DEBUG "SKIP (already converted): $f"
         return 0
     fi
 
-    log "Converting (v${version:-?}): $f"
+    log INFO "Converting (v${version:-?}): $f"
     if ebook-convert "$f" "$out" --epub-version=3 2>&1; then
         mv "$out" "$f"
-        log "OK: $f"
+        log INFO "OK: $f"
     else
-        log "FAILED: $f"
+        log ERROR "FAILED: $f"
         rm -f "$out"
     fi
 }
@@ -59,16 +72,16 @@ fix_duplicates() {
     local host_path="${abs_path/$ABS_EBOOKS_PREFIX/$EBOOKS_DIR}"
 
     if [[ ! -f "$host_path" ]]; then
-        log "SKIP duplicate fix (file not found on host): $host_path"
+        log DEBUG "SKIP duplicate fix (file not found on host): $host_path"
         return
     fi
 
-    log "Fixing duplicate libraryFiles: $item_id"
+    log DEBUG "Fixing duplicate libraryFiles: $item_id"
     mv "$host_path" "${host_path}.bak"
     curl -s -X POST "${ABS_HOST}/api/items/${item_id}/scan" -H "$ABS_AUTH" > /dev/null
     mv "${host_path}.bak" "$host_path"
     curl -s -X POST "${ABS_HOST}/api/items/${item_id}/scan" -H "$ABS_AUTH" > /dev/null
-    log "Fixed: $item_id"
+    log DEBUG "Fixed: $item_id"
 }
 
 check_and_fix_duplicates_for_item() {
@@ -120,7 +133,7 @@ json.dump(data, open('${STATE_FILE}', 'w'), indent=2)
 incremental_run() {
     local since_ms
     since_ms=$(load_last_added_at)
-    log "Incremental run — checking items added after epoch ms ${since_ms}"
+    log INFO "Incremental run — checking items added after epoch ms ${since_ms}"
 
     local max_added_at="$since_ms"
 
@@ -140,11 +153,11 @@ for item in data.get('results', []):
         local host_path="${abs_path/$ABS_EBOOKS_PREFIX/$EBOOKS_DIR}"
 
         if [[ ! -f "$host_path" ]]; then
-            log "File not found on host (skipping): $host_path"
+            log DEBUG "File not found on host (skipping): $host_path"
             continue
         fi
 
-        log "Processing new item ${item_id}: $host_path"
+        log INFO "Processing new item ${item_id}: $host_path"
 
         # Step 1: convert
         convert_epub "$host_path"
@@ -160,18 +173,18 @@ for item in data.get('results', []):
 
 # ── Full: scan entire directory ──────────────────────────────────────────
 full_run() {
-    log "Full run — scanning ${EBOOKS_DIR}"
+    log INFO "Full run — scanning ${EBOOKS_DIR}"
 
-    log "=== Step 1: Converting EPUB1/2 files ==="
+    log INFO "=== Step 1: Converting EPUB1/2 files ==="
     find "$EBOOKS_DIR" -name "*.epub" | grep -v "\-epub3\.epub" | while read -r f; do
         convert_epub "$f"
     done
 
     local remaining
     remaining=$(find "$EBOOKS_DIR" -name "*-epub3.epub" | wc -l)
-    log "Remaining -epub3.epub files (should be 0): $remaining"
+    log INFO "Remaining -epub3.epub files (should be 0): $remaining"
 
-    log "=== Step 2: Fixing ABS duplicate libraryFiles ==="
+    log INFO "=== Step 2: Fixing ABS duplicate libraryFiles ==="
     curl -s "${ABS_HOST}/api/libraries/${EBOOKS_LIB_ID}/items?limit=1000" \
         -H "$ABS_AUTH" | python3 -c "
 import json, sys
@@ -190,4 +203,4 @@ else
     incremental_run
 fi
 
-log "=== Done ==="
+log INFO "=== Done ==="

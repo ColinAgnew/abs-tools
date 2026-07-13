@@ -5,6 +5,8 @@ services:
     env_file: .env
     user: "1000:1000"
     environment:
+      # Log level: DEBUG, INFO, WARN, ERROR (default: INFO)
+      - LOG_LEVEL=INFO
       # Enable/disable tools
       - ENABLE_AUTO_MATCH=true
       - ENABLE_CHAPTER_MATCH=true
