@@ -76,7 +76,7 @@ def quickmatch(item_ids):
         timeout=60,
     )
     resp.raise_for_status()
-    return resp.json()
+    return resp.json() if resp.content else {}
 
 
 def process_library(name, library_id, full, state):
