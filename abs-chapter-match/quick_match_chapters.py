@@ -217,6 +217,8 @@ def main():
     parser = argparse.ArgumentParser(description="Match audiobook chapters via Audnexus")
     parser.add_argument("--full", action="store_true",
                         help="Process entire library instead of only new items")
+    parser.add_argument("--skip-matched", action="store_true",
+                        help=f"Skip books that already have more than CHAPTER_THRESHOLD ({CHAPTER_THRESHOLD}) chapters")
     args = parser.parse_args()
 
     state = load_state()
@@ -227,6 +229,12 @@ def main():
         log("Full run: processing entire audiobooks library")
 
     items = get_library_items(since_ms=since_ms)
+
+    if args.skip_matched:
+        before = len(items)
+        items = [i for i in items if i["media"].get("numChapters", 0) <= CHAPTER_THRESHOLD]
+        log(f"Skipping {before - len(items)} already-matched item(s) (numChapters > {CHAPTER_THRESHOLD})")
+
     log(f"Found {len(items)} item(s) to process")
 
     book_info = {}
