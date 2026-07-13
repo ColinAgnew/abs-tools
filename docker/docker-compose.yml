@@ -3,10 +3,31 @@ services:
     image: ghcr.io/colinagnew/abs-tools:latest
     container_name: abs-tools
     env_file: .env
+    user: "1000:1000"
+    environment:
+      # Enable/disable tools
+      - ENABLE_AUTO_MATCH=true
+      - ENABLE_CHAPTER_MATCH=true
+      - ENABLE_EPUB_CONVERT=true
+      # Schedules (cron format)
+      - SCHEDULE_AUTO_MATCH=0 * * * *
+      - SCHEDULE_CHAPTER_MATCH=5 * * * *
+      - SCHEDULE_EPUB_CONVERT=10 * * * *
+      - SCHEDULE_EPUB_CONVERT_FULL=30 2 * * 0
+      # epub-convert paths
+      - EBOOKS_DIR=/ebooks
+      - ABS_EBOOKS_PREFIX=/ebooks
+      # Chapter match tuning
+      - CHAPTER_THRESHOLD=3
+      - CHAPTER_PROVIDER=audible.com
+      - CHAPTER_REGION=US
+      - SEARCH_FOR_ASIN=true
+      - USE_TRACKS_AS_CHAPTERS=false
+      - DISABLE_RATE_PROTECTION=false
     restart: unless-stopped
     # Uncomment to persist logs and state outside the container:
     # volumes:
     #   - ./logs:/var/log/abs-tools
     #   - ./data:/var/lib/abs-tools
-    # Uncomment if using epub-convert (set EBOOKS_DIR=/ebooks in .env):
+    # Uncomment if using epub-convert (mount your ebooks directory to /ebooks):
     #   - /path/to/your/ebooks:/ebooks
