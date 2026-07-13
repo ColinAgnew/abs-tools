@@ -61,11 +61,11 @@ def get_items(library_id, since_ms=None):
     return items
 
 
-def filter_missing_asin(items):
-    return [
-        i for i in items
-        if not i.get("media", {}).get("metadata", {}).get("asin")
-    ]
+def filter_missing_identifiers(items):
+    def needs_match(item):
+        meta = item.get("media", {}).get("metadata", {})
+        return not meta.get("asin") and not meta.get("isbn")
+    return [i for i in items if needs_match(i)]
 
 
 def quickmatch(item_ids):
@@ -89,8 +89,8 @@ def process_library(name, library_id, full, state):
     items = get_items(library_id, since_ms=since_ms)
     log(f"{len(items)} item(s) to check")
 
-    to_match = filter_missing_asin(items)
-    log(f"{len(to_match)} missing ASIN")
+    to_match = filter_missing_identifiers(items)
+    log(f"{len(to_match)} missing ASIN and ISBN")
 
     if to_match:
         for i in to_match:
