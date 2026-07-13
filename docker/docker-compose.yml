@@ -14,9 +14,14 @@ services:
       - SCHEDULE_CHAPTER_MATCH=5 * * * *
       - SCHEDULE_EPUB_CONVERT=10 * * * *
       - SCHEDULE_EPUB_CONVERT_FULL=30 2 * * 0
-      # Auto-match providers (optional — uses library's configured provider in ABS if not set)
-      # - AUTOMATCH_PROVIDER_AUDIOBOOKS=audible.com
-      # - AUTOMATCH_PROVIDER_EBOOKS=openlibrary
+      # Auto-match providers (optional — uses google if not set)
+      # Built-in: audible, audible.com, audible.ca, audible.co.uk, audible.com.au, audible.de, audible.fr, audible.co.jp, audible.it, audible.in, audible.es, google, openlibrary
+      # Custom providers: custom-<id>  (find IDs at GET /api/custom-metadata-providers)
+      # - AUTOMATCH_PROVIDER_AUDIOBOOKS=audible
+      # - AUTOMATCH_PROVIDER_EBOOKS=custom-<id>
+      # Batching — prevents rate limits from custom providers on large libraries
+      # - AUTOMATCH_BATCH_SIZE=25
+      # - AUTOMATCH_BATCH_DELAY=10
       # epub-convert paths
       - EBOOKS_DIR=/ebooks
       - ABS_EBOOKS_PREFIX=/ebooks

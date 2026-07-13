@@ -58,8 +58,10 @@ All available variables with their defaults:
 | `SCHEDULE_EPUB_CONVERT` | `10 * * * *` | Cron schedule for epub-convert (incremental) |
 | `SCHEDULE_EPUB_CONVERT_FULL` | `30 2 * * 0` | Cron schedule for epub-convert (full scan) |
 | **abs-auto-match** | | |
-| `AUTOMATCH_PROVIDER_AUDIOBOOKS` | *(library default)* | Override metadata provider for audiobook quickmatch |
-| `AUTOMATCH_PROVIDER_EBOOKS` | *(library default)* | Override metadata provider for ebook quickmatch |
+| `AUTOMATCH_PROVIDER_AUDIOBOOKS` | `google` | Metadata provider for audiobook quickmatch. Built-in: `audible`, `audible.com`, `google`, `openlibrary`. Custom: `custom-<id>` (find IDs at `GET /api/custom-metadata-providers`) |
+| `AUTOMATCH_PROVIDER_EBOOKS` | `google` | Metadata provider for ebook quickmatch. Same values as above. |
+| `AUTOMATCH_BATCH_SIZE` | `25` | Items per quickmatch batch. Lower this if your metadata provider rate-limits. |
+| `AUTOMATCH_BATCH_DELAY` | `10` | Seconds to wait between batches. |
 | **epub-convert** | | |
 | `EBOOKS_DIR` | `/ebooks` | Path where the ebooks directory is mounted inside the container |
 | `ABS_EBOOKS_PREFIX` | `/ebooks` | Path as Audiobookshelf sees the ebooks directory internally |

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Scans ABS libraries for items missing an ASIN and runs quickmatch on them.
+Scans ABS libraries for items missing an ASIN/ISBN and runs quickmatch on them.
 
 Incremental mode (default, hourly timer): only items added since last run.
 Full mode (--full): entire library. Optionally scoped with --library.
@@ -14,8 +14,8 @@ Usage:
 import argparse
 import json
 import os
-import sys
 import requests
+import time
 from datetime import datetime, timezone
 
 ABS_HOST            = os.environ["ABS_HOST"]
@@ -23,6 +23,8 @@ ABS_TOKEN           = os.environ["ABS_TOKEN"]
 AUDIOBOOKS_LIB_ID   = os.environ["AUDIOBOOKS_LIBRARY_ID"]
 EBOOKS_LIB_ID       = os.environ["EBOOKS_LIBRARY_ID"]
 STATE_FILE          = os.environ.get("STATE_FILE", "/var/lib/abs-tools/auto-match-state.json")
+BATCH_SIZE          = int(os.environ.get("AUTOMATCH_BATCH_SIZE", "25"))
+BATCH_DELAY         = float(os.environ.get("AUTOMATCH_BATCH_DELAY", "10"))
 
 HEADERS = {"Authorization": f"Bearer {ABS_TOKEN}"}
 LIBRARIES = {"audiobooks": AUDIOBOOKS_LIB_ID, "ebooks": EBOOKS_LIB_ID}
@@ -109,8 +111,14 @@ def process_library(name, library_id, full, state):
         for i in to_match:
             title = i.get("media", {}).get("metadata", {}).get("title", i["id"])
             log(f"  Queuing: {title}")
-        result = quickmatch([i["id"] for i in to_match], name)
-        log(f"Quickmatch response: {result}")
+        ids = [i["id"] for i in to_match]
+        batches = [ids[i:i + BATCH_SIZE] for i in range(0, len(ids), BATCH_SIZE)]
+        for idx, batch in enumerate(batches):
+            if idx > 0:
+                log(f"Waiting {BATCH_DELAY}s before next batch...")
+                time.sleep(BATCH_DELAY)
+            log(f"Batch {idx + 1}/{len(batches)} ({len(batch)} items)")
+            quickmatch(batch, name)
     else:
         log("Nothing to match")
 
