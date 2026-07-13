@@ -15,21 +15,27 @@ Converts EPUB2/1 files to EPUB3 using Calibre and fixes duplicate `libraryFiles`
 
 ## Deployment
 
-### 1. Create a `.env` file
-
-Copy the example and fill in your values:
+### 1. Download the config files
 
 ```bash
-cp env/abs-tools.env.example .env
-nano .env
+mkdir abs-tools && cd abs-tools
+
+curl -o docker-compose.yml https://raw.githubusercontent.com/ColinAgnew/abs-tools/main/docker/docker-compose.yml
+curl -o .env https://raw.githubusercontent.com/ColinAgnew/abs-tools/main/env/abs-tools.env.example
+```
+
+### 2. Edit `.env`
+
+```bash
+vi .env
 ```
 
 The only required values are `ABS_HOST`, `ABS_TOKEN`, `AUDIOBOOKS_LIBRARY_ID`, and `EBOOKS_LIBRARY_ID`. Everything else has sensible defaults.
 
-### 2. Start
+### 3. Start
 
 ```bash
-docker compose -f docker/docker-compose.yml up -d
+docker compose up -d
 ```
 
 The container starts its internal scheduler immediately. On startup it prints which tools are enabled and their schedules.
