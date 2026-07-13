@@ -27,6 +27,11 @@ STATE_FILE          = os.environ.get("STATE_FILE", "/var/lib/abs-tools/auto-matc
 HEADERS = {"Authorization": f"Bearer {ABS_TOKEN}"}
 LIBRARIES = {"audiobooks": AUDIOBOOKS_LIB_ID, "ebooks": EBOOKS_LIB_ID}
 
+LIBRARY_PROVIDERS = {
+    "audiobooks": os.environ.get("AUTOMATCH_PROVIDER_AUDIOBOOKS", "audible.com"),
+    "ebooks":     os.environ.get("AUTOMATCH_PROVIDER_EBOOKS", "openlibrary"),
+}
+
 
 def log(msg):
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
@@ -68,11 +73,12 @@ def filter_missing_identifiers(items):
     return [i for i in items if needs_match(i)]
 
 
-def quickmatch(item_ids):
+def quickmatch(item_ids, library_name):
+    provider = LIBRARY_PROVIDERS.get(library_name, "openlibrary")
     resp = requests.post(
         f"{ABS_HOST}/api/items/batch/quickmatch",
         headers=HEADERS,
-        json={"options": {}, "libraryItemIds": item_ids},
+        json={"options": {"provider": provider}, "libraryItemIds": item_ids},
         timeout=60,
     )
     resp.raise_for_status()
@@ -96,7 +102,7 @@ def process_library(name, library_id, full, state):
         for i in to_match:
             title = i.get("media", {}).get("metadata", {}).get("title", i["id"])
             log(f"  Queuing: {title}")
-        result = quickmatch([i["id"] for i in to_match])
+        result = quickmatch([i["id"] for i in to_match], name)
         log(f"Quickmatch response: {result}")
     else:
         log("Nothing to match")
