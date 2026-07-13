@@ -28,8 +28,8 @@ HEADERS = {"Authorization": f"Bearer {ABS_TOKEN}"}
 LIBRARIES = {"audiobooks": AUDIOBOOKS_LIB_ID, "ebooks": EBOOKS_LIB_ID}
 
 LIBRARY_PROVIDERS = {
-    "audiobooks": os.environ.get("AUTOMATCH_PROVIDER_AUDIOBOOKS", "audible.com"),
-    "ebooks":     os.environ.get("AUTOMATCH_PROVIDER_EBOOKS", "openlibrary"),
+    "audiobooks": os.environ.get("AUTOMATCH_PROVIDER_AUDIOBOOKS"),
+    "ebooks":     os.environ.get("AUTOMATCH_PROVIDER_EBOOKS"),
 }
 
 
@@ -74,11 +74,12 @@ def filter_missing_identifiers(items):
 
 
 def quickmatch(item_ids, library_name):
-    provider = LIBRARY_PROVIDERS.get(library_name, "openlibrary")
+    provider = LIBRARY_PROVIDERS.get(library_name)
+    options = {"provider": provider} if provider else {}
     resp = requests.post(
         f"{ABS_HOST}/api/items/batch/quickmatch",
         headers=HEADERS,
-        json={"options": {"provider": provider}, "libraryItemIds": item_ids},
+        json={"options": options, "libraryItemIds": item_ids},
         timeout=60,
     )
     resp.raise_for_status()
