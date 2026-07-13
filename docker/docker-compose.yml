@@ -1,6 +1,7 @@
 services:
   abs-tools:
     image: ghcr.io/colinagnew/abs-tools:latest
+    container_name: abs-tools
     env_file: .env
     restart: unless-stopped
     # Uncomment to persist logs and state outside the container:

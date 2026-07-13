@@ -65,16 +65,16 @@ volumes:
 
 ```bash
 # Auto-match — all libraries
-docker compose -f docker/docker-compose.yml exec abs-tools python3 /scripts/abs_auto_match.py --full
+docker exec abs-tools python3 /scripts/abs_auto_match.py --full
 
 # Auto-match — one library
-docker compose -f docker/docker-compose.yml exec abs-tools python3 /scripts/abs_auto_match.py --full --library audiobooks
+docker exec abs-tools python3 /scripts/abs_auto_match.py --full --library audiobooks
 
 # Chapter match — full audiobooks library
-docker compose -f docker/docker-compose.yml exec abs-tools python3 /scripts/quick_match_chapters.py --full
+docker exec abs-tools python3 /scripts/quick_match_chapters.py --full
 
 # EPUB convert — full library scan
-docker compose -f docker/docker-compose.yml exec abs-tools /scripts/epubv3.sh --full
+docker exec abs-tools /scripts/epubv3.sh --full
 ```
 
 ## Logs
@@ -84,9 +84,9 @@ docker compose -f docker/docker-compose.yml exec abs-tools /scripts/epubv3.sh --
 docker compose -f docker/docker-compose.yml logs -f
 
 # Per-tool log files (inside container, or on host if volume mounted)
-docker compose -f docker/docker-compose.yml exec abs-tools tail -f /var/log/abs-tools/abs-auto-match.log
-docker compose -f docker/docker-compose.yml exec abs-tools tail -f /var/log/abs-tools/abs-chapter-match.log
-docker compose -f docker/docker-compose.yml exec abs-tools tail -f /var/log/abs-tools/epub-convert.log
+docker exec abs-tools tail -f /var/log/abs-tools/abs-auto-match.log
+docker exec abs-tools tail -f /var/log/abs-tools/abs-chapter-match.log
+docker exec abs-tools tail -f /var/log/abs-tools/epub-convert.log
 ```
 
 ## Credits
