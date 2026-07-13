@@ -18,10 +18,13 @@ services:
       # Built-in: audible, audible.com, audible.ca, audible.co.uk, audible.com.au, audible.de, audible.fr, audible.co.jp, audible.it, audible.in, audible.es, google, openlibrary
       # Custom providers: custom-<id>  (find IDs at GET /api/custom-metadata-providers)
       # - AUTOMATCH_PROVIDER_AUDIOBOOKS=audible
+      # - AUTOMATCH_PROVIDER_AUDIOBOOKS_FALLBACK=custom-<id>
       # - AUTOMATCH_PROVIDER_EBOOKS=custom-<id>
+      # - AUTOMATCH_PROVIDER_EBOOKS_FALLBACK=custom-<id>
       # Batching — prevents rate limits from custom providers on large libraries
       # - AUTOMATCH_BATCH_SIZE=25
       # - AUTOMATCH_BATCH_DELAY=10
+      # - AUTOMATCH_FALLBACK_DELAY=60
       # epub-convert paths
       - EBOOKS_DIR=/ebooks
       - ABS_EBOOKS_PREFIX=/ebooks

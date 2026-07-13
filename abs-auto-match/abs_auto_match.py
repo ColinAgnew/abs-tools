@@ -25,13 +25,20 @@ EBOOKS_LIB_ID       = os.environ["EBOOKS_LIBRARY_ID"]
 STATE_FILE          = os.environ.get("STATE_FILE", "/var/lib/abs-tools/auto-match-state.json")
 BATCH_SIZE          = int(os.environ.get("AUTOMATCH_BATCH_SIZE", "25"))
 BATCH_DELAY         = float(os.environ.get("AUTOMATCH_BATCH_DELAY", "10"))
+FALLBACK_DELAY      = float(os.environ.get("AUTOMATCH_FALLBACK_DELAY", "60"))
 
 HEADERS = {"Authorization": f"Bearer {ABS_TOKEN}"}
 LIBRARIES = {"audiobooks": AUDIOBOOKS_LIB_ID, "ebooks": EBOOKS_LIB_ID}
 
 LIBRARY_PROVIDERS = {
-    "audiobooks": os.environ.get("AUTOMATCH_PROVIDER_AUDIOBOOKS"),
-    "ebooks":     os.environ.get("AUTOMATCH_PROVIDER_EBOOKS"),
+    "audiobooks": {
+        "primary":  os.environ.get("AUTOMATCH_PROVIDER_AUDIOBOOKS"),
+        "fallback": os.environ.get("AUTOMATCH_PROVIDER_AUDIOBOOKS_FALLBACK"),
+    },
+    "ebooks": {
+        "primary":  os.environ.get("AUTOMATCH_PROVIDER_EBOOKS"),
+        "fallback": os.environ.get("AUTOMATCH_PROVIDER_EBOOKS_FALLBACK"),
+    },
 }
 
 
@@ -75,8 +82,7 @@ def filter_missing_identifiers(items):
     return [i for i in items if needs_match(i)]
 
 
-def quickmatch(item_ids, library_name):
-    provider = LIBRARY_PROVIDERS.get(library_name)
+def quickmatch(item_ids, provider=None):
     options = {"provider": provider} if provider else {}
     resp = requests.post(
         f"{ABS_HOST}/api/items/batch/quickmatch",
@@ -94,8 +100,22 @@ def quickmatch(item_ids, library_name):
         return {}
 
 
+def run_batches(ids, provider, label):
+    batches = [ids[i:i + BATCH_SIZE] for i in range(0, len(ids), BATCH_SIZE)]
+    for idx, batch in enumerate(batches):
+        if idx > 0:
+            log(f"Waiting {BATCH_DELAY}s before next batch...")
+            time.sleep(BATCH_DELAY)
+        log(f"{label} batch {idx + 1}/{len(batches)} ({len(batch)} items)")
+        quickmatch(batch, provider)
+
+
 def process_library(name, library_id, full, state):
     log(f"--- {name} ({'full' if full else 'incremental'}) ---")
+
+    providers = LIBRARY_PROVIDERS[name]
+    primary  = providers["primary"]
+    fallback = providers["fallback"]
 
     since_ms = None if full else state.get(name, {}).get("last_added_at")
     if since_ms:
@@ -111,14 +131,25 @@ def process_library(name, library_id, full, state):
         for i in to_match:
             title = i.get("media", {}).get("metadata", {}).get("title", i["id"])
             log(f"  Queuing: {title}")
-        ids = [i["id"] for i in to_match]
-        batches = [ids[i:i + BATCH_SIZE] for i in range(0, len(ids), BATCH_SIZE)]
-        for idx, batch in enumerate(batches):
-            if idx > 0:
-                log(f"Waiting {BATCH_DELAY}s before next batch...")
-                time.sleep(BATCH_DELAY)
-            log(f"Batch {idx + 1}/{len(batches)} ({len(batch)} items)")
-            quickmatch(batch, name)
+
+        run_batches([i["id"] for i in to_match], primary, "Primary")
+
+        if fallback:
+            log(f"Waiting {FALLBACK_DELAY}s for ABS to finish primary pass...")
+            time.sleep(FALLBACK_DELAY)
+
+            refreshed = get_items(library_id, since_ms=since_ms)
+            original_ids = {i["id"] for i in to_match}
+            still_missing = [i for i in filter_missing_identifiers(refreshed) if i["id"] in original_ids]
+
+            if still_missing:
+                log(f"{len(still_missing)} still missing after primary pass — trying fallback provider")
+                for i in still_missing:
+                    title = i.get("media", {}).get("metadata", {}).get("title", i["id"])
+                    log(f"  Fallback: {title}")
+                run_batches([i["id"] for i in still_missing], fallback, "Fallback")
+            else:
+                log("All items matched in primary pass")
     else:
         log("Nothing to match")
 
@@ -134,7 +165,7 @@ def process_library(name, library_id, full, state):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Auto-match ABS items missing ASIN")
+    parser = argparse.ArgumentParser(description="Auto-match ABS items missing ASIN/ISBN")
     parser.add_argument("--full", action="store_true",
                         help="Process entire library instead of only new items")
     parser.add_argument("--library", choices=["audiobooks", "ebooks", "all"], default="all",
