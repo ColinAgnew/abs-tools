@@ -77,18 +77,6 @@ docker exec abs-tools python3 /scripts/quick_match_chapters.py --full
 docker exec abs-tools /scripts/epubv3.sh --full
 ```
 
-## Logs
-
-```bash
-# Live container output (all tools)
-docker compose -f docker/docker-compose.yml logs -f
-
-# Per-tool log files (inside container, or on host if volume mounted)
-docker exec abs-tools tail -f /var/log/abs-tools/abs-auto-match.log
-docker exec abs-tools tail -f /var/log/abs-tools/abs-chapter-match.log
-docker exec abs-tools tail -f /var/log/abs-tools/epub-convert.log
-```
-
 ## Credits
 
 - [Audiobookshelf](https://www.audiobookshelf.org/) — the self-hosted audiobook and podcast server these tools integrate with
