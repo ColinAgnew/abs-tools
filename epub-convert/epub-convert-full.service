@@ -10,6 +10,6 @@ ExecStart=/usr/bin/docker run --rm \
     -v /var/log/abs-tools:/var/log/abs-tools \
     -v /var/lib/abs-tools:/var/lib/abs-tools \
     -v ${EBOOKS_DIR}:${EBOOKS_DIR} \
-    abs-tools-epub --full
+    ghcr.io/colinagnew/abs-tools-epub:latest --full
 StandardOutput=append:/var/log/abs-tools/epub-convert.log
 StandardError=append:/var/log/abs-tools/epub-convert.log

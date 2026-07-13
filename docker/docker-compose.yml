@@ -1,9 +1,6 @@
 services:
   abs-auto-match:
-    build:
-      context: ..
-      dockerfile: docker/python/Dockerfile
-    image: abs-tools-python
+    image: ghcr.io/colinagnew/abs-tools-python:latest
     user: "1000:1000"
     env_file: ../env/abs-tools.env
     volumes:
@@ -11,7 +8,7 @@ services:
       - /var/lib/abs-tools:/var/lib/abs-tools
 
   abs-chapter-match:
-    image: abs-tools-python
+    image: ghcr.io/colinagnew/abs-tools-python:latest
     user: "1000:1000"
     env_file: ../env/abs-tools.env
     volumes:
@@ -19,10 +16,7 @@ services:
       - /var/lib/abs-tools:/var/lib/abs-tools
 
   epub-convert:
-    build:
-      context: ..
-      dockerfile: docker/epub/Dockerfile
-    image: abs-tools-epub
+    image: ghcr.io/colinagnew/abs-tools-epub:latest
     user: "1000:1000"
     env_file: ../env/epub-convert.env
     volumes:
