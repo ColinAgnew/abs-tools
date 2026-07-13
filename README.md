@@ -42,19 +42,31 @@ The container starts its internal scheduler immediately. On startup it prints wh
 
 ## Configuration
 
-All configuration is in the `.env` file. Key options:
+Credentials go in `.env`. Everything else is configured in the `environment:` section of `docker-compose.yml`.
+
+All available variables with their defaults:
 
 | Variable | Default | Description |
 |---|---|---|
-| `ENABLE_AUTO_MATCH` | `true` | Enable/disable auto-match |
-| `ENABLE_CHAPTER_MATCH` | `true` | Enable/disable chapter match |
-| `ENABLE_EPUB_CONVERT` | `true` | Enable/disable epub conversion |
-| `SCHEDULE_AUTO_MATCH` | `0 * * * *` | Cron schedule for auto-match |
-| `SCHEDULE_CHAPTER_MATCH` | `5 * * * *` | Cron schedule for chapter match |
-| `SCHEDULE_EPUB_CONVERT` | `10 * * * *` | Cron schedule for epub convert (incremental) |
-| `SCHEDULE_EPUB_CONVERT_FULL` | `30 2 * * 0` | Cron schedule for epub convert (full scan) |
-
-See `env/abs-tools.env.example` for all options.
+| **General** | | |
+| `ENABLE_AUTO_MATCH` | `true` | Enable/disable abs-auto-match |
+| `ENABLE_CHAPTER_MATCH` | `true` | Enable/disable abs-chapter-match |
+| `ENABLE_EPUB_CONVERT` | `true` | Enable/disable epub-convert |
+| **Schedules** | | |
+| `SCHEDULE_AUTO_MATCH` | `0 * * * *` | Cron schedule for abs-auto-match |
+| `SCHEDULE_CHAPTER_MATCH` | `5 * * * *` | Cron schedule for abs-chapter-match |
+| `SCHEDULE_EPUB_CONVERT` | `10 * * * *` | Cron schedule for epub-convert (incremental) |
+| `SCHEDULE_EPUB_CONVERT_FULL` | `30 2 * * 0` | Cron schedule for epub-convert (full scan) |
+| **epub-convert** | | |
+| `EBOOKS_DIR` | `/ebooks` | Path where the ebooks directory is mounted inside the container |
+| `ABS_EBOOKS_PREFIX` | `/ebooks` | Path as Audiobookshelf sees the ebooks directory internally |
+| **abs-chapter-match** | | |
+| `CHAPTER_THRESHOLD` | `3` | Max chapter count difference before replacing existing chapters |
+| `CHAPTER_PROVIDER` | `audible.com` | Metadata provider for chapter lookup |
+| `CHAPTER_REGION` | `US` | Region code for chapter lookup |
+| `SEARCH_FOR_ASIN` | `true` | Search for ASIN if not present before matching chapters |
+| `USE_TRACKS_AS_CHAPTERS` | `false` | Fall back to audio tracks as chapters if no ASIN found |
+| `DISABLE_RATE_PROTECTION` | `false` | Disable 2s delay between API calls |
 
 ## Volumes
 
@@ -89,7 +101,6 @@ docker exec abs-tools /scripts/epubv3.sh --full
 - [Audnexus](https://github.com/laxamentumtech/audnexus) — the metadata and chapter data provider used by abs-chapter-match
 - [Calibre](https://calibre-ebook.com/) — provides `ebook-convert`, used by epub-convert for EPUB2→EPUB3 conversion
 - [absToolbox](https://github.com/Vito0912/absToolbox) by Vito0912 — the original `quick_match_chapters.py` script that abs-chapter-match is based on
-- [supercronic](https://github.com/aptible/supercronic) — container-native cron scheduler
 
 ## Disclaimer
 
