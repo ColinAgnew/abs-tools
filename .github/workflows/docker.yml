@@ -4,10 +4,11 @@ on:
   push:
     branches: [main]
     paths:
-      - abs-auto-match/**
-      - abs-chapter-match/**
-      - epub-convert/**
-      - docker/**
+      - abs-auto-match/abs_auto_match.py
+      - abs-chapter-match/quick_match_chapters.py
+      - epub-convert/epubv3.sh
+      - docker/Dockerfile
+      - docker/scheduler.py
     tags:
       - "v*.*.*"
 
