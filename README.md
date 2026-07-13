@@ -5,13 +5,13 @@ Automated metadata and file maintenance tools for [Audiobookshelf](https://www.a
 ## Tools
 
 ### abs-auto-match
-Scans both the Audiobooks and Ebooks libraries for items missing an ASIN and runs Audiobookshelf's quickmatch against them. Only triggers on items without an ASIN — items with existing metadata are left alone.
+Scans both the Audiobooks and Ebooks libraries for items missing an ASIN or ISBN and runs Audiobookshelf's quickmatch against them. Supports a primary and fallback metadata provider per library — useful when your primary provider (e.g. a custom Hardcover integration) doesn't have identifiers for every book. Sends items in configurable batches to avoid rate-limiting custom providers.
 
 ### abs-chapter-match
-Matches chapter data for audiobooks via [Audnexus](https://github.com/laxamentumtech/audnexus) (accessed through the ABS API). Includes a fallback to use audio tracks as chapters when no ASIN is available.
+Matches chapter data for audiobooks via [Audnexus](https://github.com/laxamentumtech/audnexus) (accessed through the ABS API). Searches for an ASIN if one isn't present, and optionally falls back to using audio tracks as chapters. Supports a `--skip-matched` flag to skip books that already have sufficient chapters on full runs.
 
 ### epub-convert
-Converts EPUB2/1 files to EPUB3 using Calibre and fixes duplicate `libraryFiles` entries in Audiobookshelf. Runs on newly added ebook items, with a separate full directory scan on a weekly schedule.
+Converts EPUB2/1 files to EPUB3 using Calibre and fixes duplicate `libraryFiles` entries in Audiobookshelf. Runs incrementally on newly added ebook items, with a separate full directory scan on a weekly schedule.
 
 ## Deployment
 
@@ -49,7 +49,7 @@ All available variables with their defaults:
 | Variable | Default | Description |
 |---|---|---|
 | **General** | | |
-| `LOG_LEVEL` | `INFO` | Log verbosity: `DEBUG`, `INFO`, `WARN`, `ERROR`. `DEBUG` logs every queued item; `INFO` is the default. |
+| `LOG_LEVEL` | `INFO` | Log verbosity: `DEBUG`, `INFO`, `WARN`, `ERROR`. `DEBUG` includes per-item detail; `INFO` is the default. |
 | `ENABLE_AUTO_MATCH` | `true` | Enable/disable abs-auto-match |
 | `ENABLE_CHAPTER_MATCH` | `true` | Enable/disable abs-chapter-match |
 | `ENABLE_EPUB_CONVERT` | `true` | Enable/disable epub-convert |
@@ -59,27 +59,27 @@ All available variables with their defaults:
 | `SCHEDULE_EPUB_CONVERT` | `10 * * * *` | Cron schedule for epub-convert (incremental) |
 | `SCHEDULE_EPUB_CONVERT_FULL` | `30 2 * * 0` | Cron schedule for epub-convert (full scan) |
 | **abs-auto-match** | | |
-| `AUTOMATCH_PROVIDER_AUDIOBOOKS` | `google` | Primary metadata provider for audiobook quickmatch. Built-in: `audible`, `audible.com`, `google`, `openlibrary`. Custom: `custom-<id>` (find IDs at `GET /api/custom-metadata-providers`) |
-| `AUTOMATCH_PROVIDER_AUDIOBOOKS_FALLBACK` | *(none)* | Fallback provider tried for audiobooks still missing identifiers after the primary pass. |
+| `AUTOMATCH_PROVIDER_AUDIOBOOKS` | `google` | Primary metadata provider for audiobook quickmatch. Built-in: `audible`, `audible.com`, `google`, `openlibrary`. Custom providers: `custom-<id>` — find IDs via `GET /api/custom-metadata-providers`. |
+| `AUTOMATCH_PROVIDER_AUDIOBOOKS_FALLBACK` | *(none)* | Fallback provider for audiobooks still missing identifiers after the primary pass. |
 | `AUTOMATCH_PROVIDER_EBOOKS` | `google` | Primary metadata provider for ebook quickmatch. Same values as above. |
-| `AUTOMATCH_PROVIDER_EBOOKS_FALLBACK` | *(none)* | Fallback provider tried for ebooks still missing identifiers after the primary pass. |
-| `AUTOMATCH_BATCH_SIZE` | `25` | Items per quickmatch batch. Lower this if your metadata provider rate-limits. |
+| `AUTOMATCH_PROVIDER_EBOOKS_FALLBACK` | *(none)* | Fallback provider for ebooks still missing identifiers after the primary pass. |
+| `AUTOMATCH_BATCH_SIZE` | `25` | Items per quickmatch batch. Lower this if your metadata provider rate-limits on large libraries. |
 | `AUTOMATCH_BATCH_DELAY` | `10` | Seconds to wait between batches. |
 | `AUTOMATCH_FALLBACK_DELAY` | `60` | Seconds to wait after the primary pass before checking which items still need a fallback match. |
+| **abs-chapter-match** | | |
+| `CHAPTER_THRESHOLD` | `3` | Maximum chapter count difference allowed before replacing existing chapters. Also used by `--skip-matched` to determine which books are considered already complete. |
+| `CHAPTER_PROVIDER` | `audible.com` | Metadata provider for chapter lookup |
+| `CHAPTER_REGION` | `US` | Region code for chapter lookup |
+| `SEARCH_FOR_ASIN` | `true` | Search for an ASIN if one is not present before attempting chapter match |
+| `USE_TRACKS_AS_CHAPTERS` | `false` | Fall back to audio tracks as chapters if no ASIN can be found |
+| `DISABLE_RATE_PROTECTION` | `false` | Disable the 2s delay between API calls |
 | **epub-convert** | | |
 | `EBOOKS_DIR` | `/ebooks` | Path where the ebooks directory is mounted inside the container |
 | `ABS_EBOOKS_PREFIX` | `/ebooks` | Path as Audiobookshelf sees the ebooks directory internally |
-| **abs-chapter-match** | | |
-| `CHAPTER_THRESHOLD` | `3` | Max chapter count difference before replacing existing chapters |
-| `CHAPTER_PROVIDER` | `audible.com` | Metadata provider for chapter lookup |
-| `CHAPTER_REGION` | `US` | Region code for chapter lookup |
-| `SEARCH_FOR_ASIN` | `true` | Search for ASIN if not present before matching chapters |
-| `USE_TRACKS_AS_CHAPTERS` | `false` | Fall back to audio tracks as chapters if no ASIN found |
-| `DISABLE_RATE_PROTECTION` | `false` | Disable 2s delay between API calls |
 
 ## Volumes
 
-The container is self-contained by default — logs and state are stored inside it. Optionally mount host directories in `docker-compose.yml` to persist them:
+The container is self-contained by default — logs and state are stored inside it. Optionally mount host directories in `docker-compose.yml` to persist them across container updates:
 
 ```yaml
 volumes:
@@ -88,7 +88,9 @@ volumes:
   - /path/to/ebooks:/ebooks        # required for epub-convert
 ```
 
-## Manual full runs
+## Manual runs
+
+All tools support being run manually via `docker exec`. Output goes to your terminal; scheduled runs go to Docker logs and optionally to log files if the volume is mounted.
 
 ```bash
 # Auto-match — all libraries
@@ -96,13 +98,34 @@ docker exec abs-tools python3 /scripts/abs_auto_match.py --full
 
 # Auto-match — one library
 docker exec abs-tools python3 /scripts/abs_auto_match.py --full --library audiobooks
+docker exec abs-tools python3 /scripts/abs_auto_match.py --full --library ebooks
 
-# Chapter match — full audiobooks library
+# Chapter match — full run
 docker exec abs-tools python3 /scripts/quick_match_chapters.py --full
+
+# Chapter match — full run, skip books that already have enough chapters
+docker exec abs-tools python3 /scripts/quick_match_chapters.py --full --skip-matched
 
 # EPUB convert — full library scan
 docker exec abs-tools /scripts/epubv3.sh --full
 ```
+
+## Custom metadata providers
+
+ABS supports custom metadata provider plugins (such as Hardcover, Goodreads integrations, etc.). To use one with abs-auto-match, find its ID first:
+
+```bash
+curl -H "Authorization: Bearer <token>" <ABS_HOST>/api/custom-metadata-providers
+```
+
+Then set the provider in `docker-compose.yml`:
+
+```yaml
+- AUTOMATCH_PROVIDER_EBOOKS=custom-<id>
+- AUTOMATCH_PROVIDER_EBOOKS_FALLBACK=custom-<id>
+```
+
+The batch quickmatch API defaults to Google Books when no provider is set. Custom providers are rate-limited more easily than built-ins — tune `AUTOMATCH_BATCH_SIZE` and `AUTOMATCH_BATCH_DELAY` if you see 500 errors during large runs.
 
 ## Credits
 
