@@ -1,0 +1,7 @@
+/var/log/abs-tools/epub-convert.log {
+    weekly
+    rotate 4
+    compress
+    missingok
+    notifempty
+}

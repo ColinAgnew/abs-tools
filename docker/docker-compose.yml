@@ -1,0 +1,32 @@
+services:
+  abs-auto-match:
+    build:
+      context: ..
+      dockerfile: docker/python/Dockerfile
+    image: abs-tools-python
+    user: "1000:1000"
+    env_file: ../env/abs-tools.env
+    volumes:
+      - /var/log/abs-tools:/var/log/abs-tools
+      - /var/lib/abs-tools:/var/lib/abs-tools
+
+  abs-chapter-match:
+    image: abs-tools-python
+    user: "1000:1000"
+    env_file: ../env/abs-tools.env
+    volumes:
+      - /var/log/abs-tools:/var/log/abs-tools
+      - /var/lib/abs-tools:/var/lib/abs-tools
+
+  epub-convert:
+    build:
+      context: ..
+      dockerfile: docker/epub/Dockerfile
+    image: abs-tools-epub
+    user: "1000:1000"
+    env_file: ../env/epub-convert.env
+    volumes:
+      - /var/log/abs-tools:/var/log/abs-tools
+      - /var/lib/abs-tools:/var/lib/abs-tools
+      # EBOOKS_DIR must match the path in epub-convert.env so the bind mount lines up
+      - /zfs/media_root/ebooks:/zfs/media_root/ebooks

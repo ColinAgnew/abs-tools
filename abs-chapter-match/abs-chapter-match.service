@@ -1,0 +1,14 @@
+[Unit]
+Description=Audiobookshelf chapter match via Audnexus
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/abs-tools/abs-tools.env
+ExecStart=/usr/bin/docker run --rm \
+    --user 1000:1000 \
+    --env-file /etc/abs-tools/abs-tools.env \
+    -v /var/log/abs-tools:/var/log/abs-tools \
+    -v /var/lib/abs-tools:/var/lib/abs-tools \
+    abs-tools-python abs-chapter-match
+StandardOutput=append:/var/log/abs-tools/abs-chapter-match.log
+StandardError=append:/var/log/abs-tools/abs-chapter-match.log

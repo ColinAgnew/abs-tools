@@ -1,0 +1,7 @@
+/var/log/abs-tools/abs-chapter-match.log {
+    weekly
+    rotate 4
+    compress
+    missingok
+    notifempty
+}
