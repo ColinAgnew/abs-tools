@@ -82,7 +82,13 @@ def quickmatch(item_ids, library_name):
         timeout=60,
     )
     resp.raise_for_status()
-    return resp.json() if resp.content else {}
+    if not resp.content or not resp.content.strip():
+        return {}
+    try:
+        return resp.json()
+    except ValueError:
+        log(f"Quickmatch unexpected response ({resp.status_code}): {resp.text[:300]}")
+        return {}
 
 
 def process_library(name, library_id, full, state):
