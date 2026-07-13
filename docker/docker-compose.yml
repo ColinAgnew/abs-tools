@@ -1,20 +1,11 @@
 services:
-  abs-tools-python:
-    image: ghcr.io/colinagnew/abs-tools-python:latest
-    user: "1000:1000"
-    env_file: /etc/abs-tools/abs-tools.env
-    volumes:
-      - /var/log/abs-tools:/var/log/abs-tools
-      - /var/lib/abs-tools:/var/lib/abs-tools
+  abs-tools:
+    image: ghcr.io/colinagnew/abs-tools:latest
+    env_file: .env
     restart: unless-stopped
-
-  abs-tools-epub:
-    image: ghcr.io/colinagnew/abs-tools-epub:latest
-    user: "1000:1000"
-    env_file: /etc/abs-tools/epub-convert.env
-    volumes:
-      - /var/log/abs-tools:/var/log/abs-tools
-      - /var/lib/abs-tools:/var/lib/abs-tools
-      # Must match EBOOKS_DIR in epub-convert.env
-      - /zfs/media_root/ebooks:/zfs/media_root/ebooks
-    restart: unless-stopped
+    # Uncomment to persist logs and state outside the container:
+    # volumes:
+    #   - ./logs:/var/log/abs-tools
+    #   - ./data:/var/lib/abs-tools
+    # Uncomment if using epub-convert (set EBOOKS_DIR=/ebooks in .env):
+    #   - /path/to/your/ebooks:/ebooks

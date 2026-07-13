@@ -1,5 +1,0 @@
-# abs-auto-match: incremental, top of every hour
-0 * * * * python3 /scripts/abs_auto_match.py >> /var/log/abs-tools/abs-auto-match.log 2>&1
-
-# abs-chapter-match: incremental, 5 past every hour (staggered)
-5 * * * * python3 /scripts/quick_match_chapters.py >> /var/log/abs-tools/abs-chapter-match.log 2>&1

@@ -15,8 +15,8 @@ set -uo pipefail
 ABS_HOST="${ABS_HOST:?ABS_HOST not set}"
 ABS_TOKEN="${ABS_TOKEN:?ABS_TOKEN not set}"
 EBOOKS_LIB_ID="${EBOOKS_LIBRARY_ID:?EBOOKS_LIBRARY_ID not set}"
-EBOOKS_DIR="${EBOOKS_DIR:?EBOOKS_DIR not set}"
-ABS_EBOOKS_PREFIX="${ABS_EBOOKS_PREFIX:?ABS_EBOOKS_PREFIX not set}"
+EBOOKS_DIR="${EBOOKS_DIR:-/ebooks}"
+ABS_EBOOKS_PREFIX="${ABS_EBOOKS_PREFIX:-/ebooks}"
 STATE_FILE="${STATE_FILE:-/var/lib/abs-tools/epub-convert-state.json}"
 
 FULL_RUN=false
