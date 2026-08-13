@@ -64,7 +64,7 @@ All available variables with their defaults:
 | `AUTOMATCH_PROVIDER_EBOOKS` | `google` | Primary metadata provider for ebook quickmatch. Same values as above. |
 | `AUTOMATCH_PROVIDER_EBOOKS_FALLBACK` | *(none)* | Fallback provider for ebooks still missing identifiers after the primary pass. |
 | `AUTOMATCH_PROVIDER_AUDIOBOOKS_GRAPHICAUDIO` | *(none)* | Provider used for GraphicAudio items in the audiobooks library, detected by folder path (and by title tag `[Dramatized Adaptation]` as a safety net for misfiled items). Leave unset to disable this routing entirely. |
-| `AUTOMATCH_GRAPHICAUDIO_PATH_PREFIX` | `/mnt/media_root/GraphicAudio` | Path prefix, as Audiobookshelf's own API reports it, used to detect GraphicAudio items. |
+| `AUTOMATCH_GRAPHICAUDIO_PATH_PREFIX` | `/path/to/audiobooks/GraphicAudio` | Path prefix, as Audiobookshelf's own API reports it, used to detect GraphicAudio items. |
 | `AUTOMATCH_BATCH_SIZE` | `25` | Items per quickmatch batch. Lower this if your metadata provider rate-limits on large libraries. |
 | `AUTOMATCH_BATCH_DELAY` | `10` | Seconds to wait between batches. |
 | `AUTOMATCH_FALLBACK_DELAY` | `60` | Seconds to wait after the primary pass before checking which items still need a fallback match. |

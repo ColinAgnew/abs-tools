@@ -24,7 +24,7 @@ services:
       # - AUTOMATCH_PROVIDER_EBOOKS=custom-<id>
       # - AUTOMATCH_PROVIDER_EBOOKS_FALLBACK=custom-<id>
       # - AUTOMATCH_PROVIDER_AUDIOBOOKS_GRAPHICAUDIO=custom-<id>
-      # - AUTOMATCH_GRAPHICAUDIO_PATH_PREFIX=/mnt/media_root/GraphicAudio
+      # - AUTOMATCH_GRAPHICAUDIO_PATH_PREFIX=/path/to/audiobooks/GraphicAudio
       # Batching — prevents rate limits from custom providers on large libraries
       # - AUTOMATCH_BATCH_SIZE=25
       # - AUTOMATCH_BATCH_DELAY=10

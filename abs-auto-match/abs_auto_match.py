@@ -49,7 +49,7 @@ LIBRARY_PROVIDERS = {
 # provider than the rest of the library. Detected primarily by folder path; the
 # title tag is a safety net in case a GA item ever lands outside that folder.
 GA_PROVIDER    = os.environ.get("AUTOMATCH_PROVIDER_AUDIOBOOKS_GRAPHICAUDIO")
-GA_PATH_PREFIX = os.environ.get("AUTOMATCH_GRAPHICAUDIO_PATH_PREFIX", "/mnt/media_root/GraphicAudio")
+GA_PATH_PREFIX = os.environ.get("AUTOMATCH_GRAPHICAUDIO_PATH_PREFIX", "/path/to/audiobooks/GraphicAudio")
 GA_TITLE_RE    = re.compile(r"\[dramati\w*\s*adapt\w*\]", re.IGNORECASE)
 
 
