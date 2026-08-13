@@ -5,7 +5,7 @@ Automated metadata and file maintenance tools for [Audiobookshelf](https://www.a
 ## Tools
 
 ### abs-auto-match
-Scans both the Audiobooks and Ebooks libraries for items missing an ASIN or ISBN and runs Audiobookshelf's quickmatch against them. Supports a primary and fallback metadata provider per library — useful when your primary provider (e.g. a custom Hardcover integration) doesn't have identifiers for every book. Sends items in configurable batches to avoid rate-limiting custom providers.
+Scans both the Audiobooks and Ebooks libraries for items missing an ASIN or ISBN and runs Audiobookshelf's quickmatch against them. Supports a primary and fallback metadata provider per library — useful when your primary provider (e.g. a custom Hardcover integration) doesn't have identifiers for every book. Sends items in configurable batches to avoid rate-limiting custom providers. Also supports routing a GraphicAudio subfolder within the audiobooks library to its own provider, since Audible has no data for those titles.
 
 ### abs-chapter-match
 Matches chapter data for audiobooks via [Audnexus](https://github.com/laxamentumtech/audnexus) (accessed through the ABS API). Searches for an ASIN if one isn't present, and optionally falls back to using audio tracks as chapters. Supports a `--skip-matched` flag to skip books that already have sufficient chapters on full runs.
@@ -63,6 +63,8 @@ All available variables with their defaults:
 | `AUTOMATCH_PROVIDER_AUDIOBOOKS_FALLBACK` | *(none)* | Fallback provider for audiobooks still missing identifiers after the primary pass. |
 | `AUTOMATCH_PROVIDER_EBOOKS` | `google` | Primary metadata provider for ebook quickmatch. Same values as above. |
 | `AUTOMATCH_PROVIDER_EBOOKS_FALLBACK` | *(none)* | Fallback provider for ebooks still missing identifiers after the primary pass. |
+| `AUTOMATCH_PROVIDER_AUDIOBOOKS_GRAPHICAUDIO` | *(none)* | Provider used for GraphicAudio items in the audiobooks library, detected by folder path (and by title tag `[Dramatized Adaptation]` as a safety net for misfiled items). Leave unset to disable this routing entirely. |
+| `AUTOMATCH_GRAPHICAUDIO_PATH_PREFIX` | `/mnt/media_root/GraphicAudio` | Path prefix, as Audiobookshelf's own API reports it, used to detect GraphicAudio items. |
 | `AUTOMATCH_BATCH_SIZE` | `25` | Items per quickmatch batch. Lower this if your metadata provider rate-limits on large libraries. |
 | `AUTOMATCH_BATCH_DELAY` | `10` | Seconds to wait between batches. |
 | `AUTOMATCH_FALLBACK_DELAY` | `60` | Seconds to wait after the primary pass before checking which items still need a fallback match. |

@@ -14,6 +14,7 @@ Usage:
 import argparse
 import json
 import os
+import re
 import requests
 import time
 from datetime import datetime, timezone
@@ -43,6 +44,13 @@ LIBRARY_PROVIDERS = {
         "fallback": os.environ.get("AUTOMATCH_PROVIDER_EBOOKS_FALLBACK"),
     },
 }
+
+# GraphicAudio items live in their own audiobooks subfolder and need a different
+# provider than the rest of the library. Detected primarily by folder path; the
+# title tag is a safety net in case a GA item ever lands outside that folder.
+GA_PROVIDER    = os.environ.get("AUTOMATCH_PROVIDER_AUDIOBOOKS_GRAPHICAUDIO")
+GA_PATH_PREFIX = os.environ.get("AUTOMATCH_GRAPHICAUDIO_PATH_PREFIX", "/mnt/media_root/GraphicAudio")
+GA_TITLE_RE    = re.compile(r"\[dramati\w*\s*adapt\w*\]", re.IGNORECASE)
 
 
 def log(msg, level="INFO"):
@@ -84,6 +92,15 @@ def filter_missing_identifiers(items):
         meta = item.get("media", {}).get("metadata", {})
         return not meta.get("asin") and not meta.get("isbn")
     return [i for i in items if needs_match(i)]
+
+
+def is_graphicaudio_item(item):
+    for f in item.get("libraryFiles", []):
+        path = f.get("metadata", {}).get("path") or ""
+        if path.startswith(GA_PATH_PREFIX):
+            return True
+    title = item.get("media", {}).get("metadata", {}).get("title") or ""
+    return bool(GA_TITLE_RE.search(title))
 
 
 def quickmatch(item_ids, provider=None):
@@ -130,6 +147,17 @@ def process_library(name, library_id, full, state):
 
     to_match = filter_missing_identifiers(items)
     log(f"{len(to_match)} missing ASIN and ISBN")
+
+    if name == "audiobooks" and GA_PROVIDER:
+        ga_items = [i for i in to_match if is_graphicaudio_item(i)]
+        to_match = [i for i in to_match if i not in ga_items]
+
+        if ga_items:
+            log(f"{len(ga_items)} GraphicAudio item(s) — routing to '{GA_PROVIDER}'")
+            for i in ga_items:
+                title = i.get("media", {}).get("metadata", {}).get("title", i["id"])
+                log(f"  Queuing (GraphicAudio): {title}", level="DEBUG")
+            run_batches([i["id"] for i in ga_items], GA_PROVIDER, "GraphicAudio")
 
     if to_match:
         for i in to_match:
