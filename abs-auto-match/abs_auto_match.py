@@ -11,6 +11,7 @@ Usage:
   abs_auto_match.py --full --library audiobooks      # full run, audiobooks only
   abs_auto_match.py --full --library ebooks          # full run, ebooks only
   abs_auto_match.py --full --force-covers            # refresh covers on every item, all libraries
+  abs_auto_match.py --audit-only                     # check language/description only, no writes
 """
 import argparse
 import json
@@ -347,6 +348,15 @@ def run_batches(ids, provider, label):
         quickmatch(batch, provider)
 
 
+def audit_library(name, library_id):
+    """Read-only: check every item's language/description for a mismatch
+    without matching, patching, or touching covers."""
+    log(f"--- {name} (audit-only) ---")
+    items = get_items(library_id)
+    log(f"Auditing {len(items)} item(s) for language/description mismatches...")
+    audit_matched_items({i["id"]: i for i in items})
+
+
 def process_library(name, library_id, full, state, force_covers=False):
     mode = "full" if full else "incremental"
     if force_covers:
@@ -440,12 +450,23 @@ def main():
                         help="Re-submit every item regardless of identifier status to refresh "
                              "its cover from the matched provider. Identifiers and other "
                              "already-set fields are left untouched.")
+    parser.add_argument("--audit-only", action="store_true",
+                        help="Check every item for a language/description mismatch and log "
+                             "warnings. Read-only — no matching, no cover updates, no writes.")
     args = parser.parse_args()
 
     if args.library == "all":
         targets = LIBRARIES
     else:
         targets = {args.library: LIBRARIES[args.library]}
+
+    if args.audit_only:
+        for name, library_id in targets.items():
+            try:
+                audit_library(name, library_id)
+            except Exception as e:
+                log(f"ERROR auditing {name}: {e}", level="ERROR")
+        return
 
     state = load_state()
     for name, library_id in targets.items():

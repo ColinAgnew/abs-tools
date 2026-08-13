@@ -108,6 +108,9 @@ docker exec abs-tools python3 /scripts/abs_auto_match.py --full --library ebooks
 # (identifiers and other already-set fields are left untouched)
 docker exec abs-tools python3 /scripts/abs_auto_match.py --full --force-covers
 
+# Auto-match — check language/description mismatches only, no matching or writes
+docker exec abs-tools python3 /scripts/abs_auto_match.py --audit-only
+
 # Chapter match — full run
 docker exec abs-tools python3 /scripts/quick_match_chapters.py --full
 
