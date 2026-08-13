@@ -190,12 +190,23 @@ def ga_search(title, author, provider):
     return []
 
 
-def ga_patch_identifiers(item_id, candidate):
+def ga_patch_metadata(item_id, candidate, current_meta):
+    """Gap-fill only: same fields abs_match_ga.py applies (asin, isbn,
+    description, narrators, genres, publishedYear), each sent only if the
+    candidate has it AND the item doesn't already have it set."""
     metadata = {}
-    if candidate.get("asin"):
+    if candidate.get("asin") and not current_meta.get("asin"):
         metadata["asin"] = candidate["asin"]
-    if candidate.get("isbn"):
+    if candidate.get("isbn") and not current_meta.get("isbn"):
         metadata["isbn"] = candidate["isbn"]
+    if candidate.get("description") and not current_meta.get("description"):
+        metadata["description"] = candidate["description"]
+    if candidate.get("narrator") and not current_meta.get("narrators"):
+        metadata["narrators"] = [n.strip() for n in candidate["narrator"].split(",") if n.strip()]
+    if candidate.get("genres") and not current_meta.get("genres"):
+        metadata["genres"] = candidate["genres"]
+    if candidate.get("publishedYear") and not current_meta.get("publishedYear"):
+        metadata["publishedYear"] = str(candidate["publishedYear"])
     if not metadata:
         return None
     resp = requests.patch(
@@ -220,11 +231,12 @@ def ga_apply_cover(item_id, cover_url):
 
 def match_graphicaudio_items(items, provider):
     """Under --force-covers, items is every GraphicAudio item regardless of
-    identifier status, not just ones missing identifiers -- so whether to patch
-    identifiers is decided per item from its current metadata, not by the caller.
-    Otherwise an item that was never successfully matched (e.g. skipped earlier
-    as ambiguous or no-results) would get swept into a force-covers run and only
-    ever receive a cover, silently never getting its identifiers filled in."""
+    current state, not just ones missing something -- so what's actually
+    missing (identifiers, description, narrators, genres, publishedYear, cover)
+    is decided per item from its current metadata, not by the caller. Otherwise
+    an item that was never successfully matched (e.g. skipped earlier as
+    ambiguous or no-results) would get swept into a force-covers run and only
+    ever receive a cover, silently never getting the rest filled in."""
     for idx, item in enumerate(items):
         if idx > 0:
             time.sleep(2)
@@ -232,7 +244,6 @@ def match_graphicaudio_items(items, provider):
         meta = item.get("media", {}).get("metadata", {})
         title = meta.get("title", item["id"])
         author = meta.get("authorName", "")
-        needs_identifiers = not meta.get("asin") and not meta.get("isbn")
         search_title = ga_search_title(title)
 
         log(f"  Searching (GraphicAudio): '{search_title}'", level="DEBUG")
@@ -255,15 +266,11 @@ def match_graphicaudio_items(items, provider):
                     f"skipping (run abs_match_ga.py manually)", level="WARN")
                 continue
 
-        applied_identifiers = None
-        if needs_identifiers:
-            try:
-                applied_identifiers = ga_patch_identifiers(item["id"], chosen)
-            except requests.RequestException as e:
-                log(f"  GraphicAudio metadata update failed for '{title}': {e}", level="ERROR")
-                continue
-            if not applied_identifiers:
-                log(f"  GraphicAudio match for '{title}' had no ASIN/ISBN", level="WARN")
+        try:
+            applied_metadata = ga_patch_metadata(item["id"], chosen, meta)
+        except requests.RequestException as e:
+            log(f"  GraphicAudio metadata update failed for '{title}': {e}", level="ERROR")
+            continue
 
         cover_url = chosen.get("cover")
         cover_applied = False
@@ -274,10 +281,10 @@ def match_graphicaudio_items(items, provider):
             except requests.RequestException as e:
                 log(f"  GraphicAudio cover update failed for '{title}': {e}", level="WARN")
 
-        if applied_identifiers or cover_applied:
+        if applied_metadata or cover_applied:
             parts = []
-            if applied_identifiers:
-                parts.append(str(applied_identifiers))
+            if applied_metadata:
+                parts.append(str(applied_metadata))
             if cover_applied:
                 parts.append("cover")
             log(f"  Matched (GraphicAudio): '{title}' -> {' + '.join(parts)}")
