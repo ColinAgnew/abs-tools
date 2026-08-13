@@ -7,6 +7,8 @@ Automated metadata and file maintenance tools for [Audiobookshelf](https://www.a
 ### abs-auto-match
 Scans both the Audiobooks and Ebooks libraries for items missing an ASIN or ISBN and runs Audiobookshelf's quickmatch against them. Supports a primary and fallback metadata provider per library — useful when your primary provider (e.g. a custom Hardcover integration) doesn't have identifiers for every book. Sends items in configurable batches to avoid rate-limiting custom providers. Also supports routing a GraphicAudio subfolder within the audiobooks library to its own provider, since Audible has no data for those titles — these items are searched individually (title tag and part suffix stripped first, since the raw title won't match GraphicAudio's catalog) rather than through the batch quickmatch used for everything else.
 
+Every match always takes the provider's cover image, even if one is already set (identifiers, description, and other fields are only ever filled when currently empty — never overwritten). Pass `--force-covers` to re-run this cover refresh across every item in a library regardless of identifier status, useful for a one-time bulk re-pull. After each run, matched items are checked for a language mismatch — either the matched language isn't English, or the language is English but the description text itself doesn't read as English (which can happen when a field gets filled in on a later run while an earlier, correct language value is left in place) — and logged as a warning for manual review rather than auto-corrected.
+
 ### abs-chapter-match
 Matches chapter data for audiobooks via [Audnexus](https://github.com/laxamentumtech/audnexus) (accessed through the ABS API). Searches for an ASIN if one isn't present, and optionally falls back to using audio tracks as chapters. Supports a `--skip-matched` flag to skip books that already have sufficient chapters on full runs.
 
@@ -101,6 +103,10 @@ docker exec abs-tools python3 /scripts/abs_auto_match.py --full
 # Auto-match — one library
 docker exec abs-tools python3 /scripts/abs_auto_match.py --full --library audiobooks
 docker exec abs-tools python3 /scripts/abs_auto_match.py --full --library ebooks
+
+# Auto-match — force-refresh covers on every item, regardless of identifier status
+# (identifiers and other already-set fields are left untouched)
+docker exec abs-tools python3 /scripts/abs_auto_match.py --full --force-covers
 
 # Chapter match — full run
 docker exec abs-tools python3 /scripts/quick_match_chapters.py --full

@@ -6,10 +6,11 @@ Incremental mode (default, hourly timer): only items added since last run.
 Full mode (--full): entire library. Optionally scoped with --library.
 
 Usage:
-  abs_auto_match.py                              # incremental, both libraries
-  abs_auto_match.py --full                       # full run, both libraries
-  abs_auto_match.py --full --library audiobooks  # full run, audiobooks only
-  abs_auto_match.py --full --library ebooks      # full run, ebooks only
+  abs_auto_match.py                                  # incremental, both libraries
+  abs_auto_match.py --full                           # full run, both libraries
+  abs_auto_match.py --full --library audiobooks      # full run, audiobooks only
+  abs_auto_match.py --full --library ebooks          # full run, ebooks only
+  abs_auto_match.py --full --force-covers            # refresh covers on every item, all libraries
 """
 import argparse
 import json
@@ -58,6 +59,20 @@ GA_TITLE_RE    = re.compile(r"\[dramati\w*\s*adapt\w*\]", re.IGNORECASE)
 # disambiguation approach as the one-off abs_match_ga.py cleanup script.
 GA_PART_RE     = re.compile(r"\s*\(part\s*\d+\s*of\s*\d+\)\s*", re.IGNORECASE)
 GA_PART_NUM_RE = re.compile(r"\(part\s*(\d+)\s*of\s*(\d+)\)", re.IGNORECASE)
+
+# ABS only fills a field when it's currently empty unless overrideDetails is set
+# (which we deliberately never set — see quickmatch()). A book with language
+# already set to English but an empty description can still pick up a wrong-
+# language description on a later match, since the description field itself was
+# empty. English-ness is checked on the actual text as a result, not just the
+# stored language field. Coarse on purpose: this only needs to catch "clearly
+# not English", not classify precisely.
+ENGLISH_STOPWORDS = {
+    "the", "and", "of", "to", "a", "in", "is", "was", "for", "on", "with", "as",
+    "by", "at", "from", "it", "this", "be", "or", "an", "are", "were", "that",
+    "his", "her", "he", "she", "they", "their", "not", "but", "has", "have",
+    "had", "you", "your", "will", "when", "who", "one", "all", "there", "if",
+}
 
 
 def log(msg, level="INFO"):
@@ -192,7 +207,19 @@ def ga_patch_identifiers(item_id, candidate):
     return metadata
 
 
-def match_graphicaudio_items(items, provider):
+def ga_apply_cover(item_id, cover_url):
+    resp = requests.post(
+        f"{ABS_HOST}/api/items/{item_id}/cover",
+        headers=HEADERS,
+        json={"url": cover_url},
+        timeout=30,
+    )
+    resp.raise_for_status()
+
+
+def match_graphicaudio_items(items, provider, apply_identifiers=True):
+    """apply_identifiers=False is used by --force-covers: re-search purely to
+    find the cover URL, without touching identifiers that are already correct."""
     for idx, item in enumerate(items):
         if idx > 0:
             time.sleep(2)
@@ -222,20 +249,66 @@ def match_graphicaudio_items(items, provider):
                     f"skipping (run abs_match_ga.py manually)", level="WARN")
                 continue
 
-        try:
-            applied = ga_patch_identifiers(item["id"], chosen)
-        except requests.RequestException as e:
-            log(f"  GraphicAudio metadata update failed for '{title}': {e}", level="ERROR")
-            continue
+        applied_identifiers = None
+        if apply_identifiers:
+            try:
+                applied_identifiers = ga_patch_identifiers(item["id"], chosen)
+            except requests.RequestException as e:
+                log(f"  GraphicAudio metadata update failed for '{title}': {e}", level="ERROR")
+                continue
+            if not applied_identifiers:
+                log(f"  GraphicAudio match for '{title}' had no ASIN/ISBN", level="WARN")
 
-        if applied:
-            log(f"  Matched (GraphicAudio): '{title}' -> {applied}")
-        else:
-            log(f"  GraphicAudio match for '{title}' had no ASIN/ISBN — skipping", level="WARN")
+        cover_url = chosen.get("cover")
+        cover_applied = False
+        if cover_url:
+            try:
+                ga_apply_cover(item["id"], cover_url)
+                cover_applied = True
+            except requests.RequestException as e:
+                log(f"  GraphicAudio cover update failed for '{title}': {e}", level="WARN")
+
+        if applied_identifiers or cover_applied:
+            parts = []
+            if applied_identifiers:
+                parts.append(str(applied_identifiers))
+            if cover_applied:
+                parts.append("cover")
+            log(f"  Matched (GraphicAudio): '{title}' -> {' + '.join(parts)}")
+
+
+def looks_english(text, min_words=8, min_ratio=0.08):
+    """Coarse, dependency-free English check: what fraction of words are common
+    English function words. Too-short text is treated as inconclusive (True) to
+    avoid false positives rather than trying to be precise."""
+    words = re.findall(r"[a-zA-Z']+", text.lower())
+    if len(words) < min_words:
+        return True
+    hits = sum(1 for w in words if w in ENGLISH_STOPWORDS)
+    return (hits / len(words)) >= min_ratio
+
+
+def audit_matched_items(items_by_id):
+    for item_id, item in items_by_id.items():
+        meta = item.get("media", {}).get("metadata", {})
+        title = meta.get("title", item_id)
+        language = (meta.get("language") or "").strip()
+        description = meta.get("description") or ""
+
+        if language and language.lower() != "english":
+            log(f"  Language check: '{title}' matched with language='{language}' — review manually", level="WARN")
+        elif description and not looks_english(description):
+            log(f"  Language check: '{title}' has language='{language or 'unset'}' but the description "
+                f"doesn't look English — review manually", level="WARN")
 
 
 def quickmatch(item_ids, provider=None):
-    options = {"provider": provider} if provider else {}
+    # overrideCover always on: any time we match an item, take the provider's
+    # cover. overrideDetails deliberately left off so we never clobber fields
+    # (description, genres, etc.) that are already set.
+    options = {"overrideCover": True}
+    if provider:
+        options["provider"] = provider
     resp = requests.post(
         f"{ABS_HOST}/api/items/batch/quickmatch",
         headers=HEADERS,
@@ -262,8 +335,11 @@ def run_batches(ids, provider, label):
         quickmatch(batch, provider)
 
 
-def process_library(name, library_id, full, state):
-    log(f"--- {name} ({'full' if full else 'incremental'}) ---")
+def process_library(name, library_id, full, state, force_covers=False):
+    mode = "full" if full else "incremental"
+    if force_covers:
+        mode += ", force-covers"
+    log(f"--- {name} ({mode}) ---")
 
     providers = LIBRARY_PROVIDERS[name]
     primary  = providers["primary"]
@@ -276,8 +352,17 @@ def process_library(name, library_id, full, state):
     items = get_items(library_id, since_ms=since_ms)
     log(f"{len(items)} item(s) to check")
 
-    to_match = filter_missing_identifiers(items)
-    log(f"{len(to_match)} missing ASIN and ISBN")
+    if force_covers:
+        # Ignore identifier status entirely — every item gets re-submitted so its
+        # cover is refreshed. overrideDetails is never set, so already-correct
+        # identifiers/description/etc. are left alone; only the cover is forced.
+        to_match = list(items)
+        log(f"{len(to_match)} item(s) — refreshing covers regardless of identifier status")
+    else:
+        to_match = filter_missing_identifiers(items)
+        log(f"{len(to_match)} missing ASIN and ISBN")
+
+    touched_ids = set()
 
     if name == "audiobooks" and GA_PROVIDER:
         ga_items = [i for i in to_match if is_graphicaudio_item(i)]
@@ -286,7 +371,8 @@ def process_library(name, library_id, full, state):
         if ga_items:
             log(f"{len(ga_items)} GraphicAudio item(s) — searching '{GA_PROVIDER}' individually "
                 f"(title-tag/part-suffix stripped before search)")
-            match_graphicaudio_items(ga_items, GA_PROVIDER)
+            match_graphicaudio_items(ga_items, GA_PROVIDER, apply_identifiers=not force_covers)
+            touched_ids.update(i["id"] for i in ga_items)
 
     if to_match:
         for i in to_match:
@@ -294,8 +380,9 @@ def process_library(name, library_id, full, state):
             log(f"  Queuing: {title}", level="DEBUG")
 
         run_batches([i["id"] for i in to_match], primary, "Primary")
+        touched_ids.update(i["id"] for i in to_match)
 
-        if fallback:
+        if fallback and not force_covers:
             log(f"Waiting {FALLBACK_DELAY}s for ABS to finish primary pass...")
             time.sleep(FALLBACK_DELAY)
 
@@ -314,6 +401,12 @@ def process_library(name, library_id, full, state):
     else:
         log("Nothing to match")
 
+    if touched_ids:
+        log(f"Auditing {len(touched_ids)} matched item(s) for language/description mismatches...")
+        refreshed = get_items(library_id)
+        refreshed_by_id = {i["id"]: i for i in refreshed if i["id"] in touched_ids}
+        audit_matched_items(refreshed_by_id)
+
     max_added_at = (
         max(i.get("addedAt", 0) for i in items)
         if items
@@ -331,6 +424,10 @@ def main():
                         help="Process entire library instead of only new items")
     parser.add_argument("--library", choices=["audiobooks", "ebooks", "all"], default="all",
                         help="Library to process (default: all)")
+    parser.add_argument("--force-covers", action="store_true",
+                        help="Re-submit every item regardless of identifier status to refresh "
+                             "its cover from the matched provider. Identifiers and other "
+                             "already-set fields are left untouched.")
     args = parser.parse_args()
 
     if args.library == "all":
@@ -341,7 +438,7 @@ def main():
     state = load_state()
     for name, library_id in targets.items():
         try:
-            state[name] = process_library(name, library_id, args.full, state)
+            state[name] = process_library(name, library_id, args.full, state, force_covers=args.force_covers)
         except Exception as e:
             log(f"ERROR processing {name}: {e}", level="ERROR")
     save_state(state)
