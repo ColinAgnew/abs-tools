@@ -288,6 +288,12 @@ def looks_english(text, min_words=8, min_ratio=0.08):
     return (hits / len(words)) >= min_ratio
 
 
+def is_english_language(language):
+    # ABS stores ISO/BCP-47 codes ("en", "en-US", "eng"), never the word "English".
+    normalized = language.strip().lower()
+    return normalized in ("en", "eng") or normalized.startswith("en-")
+
+
 def audit_matched_items(items_by_id):
     for item_id, item in items_by_id.items():
         meta = item.get("media", {}).get("metadata", {})
@@ -295,7 +301,7 @@ def audit_matched_items(items_by_id):
         language = (meta.get("language") or "").strip()
         description = meta.get("description") or ""
 
-        if language and language.lower() != "english":
+        if language and not is_english_language(language):
             log(f"  Language check: '{title}' matched with language='{language}' — review manually", level="WARN")
         elif description and not looks_english(description):
             log(f"  Language check: '{title}' has language='{language or 'unset'}' but the description "
