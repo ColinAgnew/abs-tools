@@ -218,9 +218,13 @@ def ga_apply_cover(item_id, cover_url):
     resp.raise_for_status()
 
 
-def match_graphicaudio_items(items, provider, apply_identifiers=True):
-    """apply_identifiers=False is used by --force-covers: re-search purely to
-    find the cover URL, without touching identifiers that are already correct."""
+def match_graphicaudio_items(items, provider):
+    """Under --force-covers, items is every GraphicAudio item regardless of
+    identifier status, not just ones missing identifiers -- so whether to patch
+    identifiers is decided per item from its current metadata, not by the caller.
+    Otherwise an item that was never successfully matched (e.g. skipped earlier
+    as ambiguous or no-results) would get swept into a force-covers run and only
+    ever receive a cover, silently never getting its identifiers filled in."""
     for idx, item in enumerate(items):
         if idx > 0:
             time.sleep(2)
@@ -228,6 +232,7 @@ def match_graphicaudio_items(items, provider, apply_identifiers=True):
         meta = item.get("media", {}).get("metadata", {})
         title = meta.get("title", item["id"])
         author = meta.get("authorName", "")
+        needs_identifiers = not meta.get("asin") and not meta.get("isbn")
         search_title = ga_search_title(title)
 
         log(f"  Searching (GraphicAudio): '{search_title}'", level="DEBUG")
@@ -251,7 +256,7 @@ def match_graphicaudio_items(items, provider, apply_identifiers=True):
                 continue
 
         applied_identifiers = None
-        if apply_identifiers:
+        if needs_identifiers:
             try:
                 applied_identifiers = ga_patch_identifiers(item["id"], chosen)
             except requests.RequestException as e:
@@ -393,7 +398,7 @@ def process_library(name, library_id, full, state, force_covers=False):
         if ga_items:
             log(f"{len(ga_items)} GraphicAudio item(s) — searching '{GA_PROVIDER}' individually "
                 f"(title-tag/part-suffix stripped before search)")
-            match_graphicaudio_items(ga_items, GA_PROVIDER, apply_identifiers=not force_covers)
+            match_graphicaudio_items(ga_items, GA_PROVIDER)
             touched_ids.update(i["id"] for i in ga_items)
 
     if to_match:
