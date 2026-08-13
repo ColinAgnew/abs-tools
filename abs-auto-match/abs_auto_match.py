@@ -289,9 +289,15 @@ def looks_english(text, min_words=8, min_ratio=0.08):
 
 
 def is_english_language(language):
-    # ABS stores ISO/BCP-47 codes ("en", "en-US", "eng"), never the word "English".
+    # Providers disagree on format: Audible-family gives ISO/BCP-47 codes ("en",
+    # "en-US", "eng"); others (Google Books, OpenLibrary, custom providers) spell
+    # it out ("English"). Accept both rather than assuming one.
     normalized = language.strip().lower()
-    return normalized in ("en", "eng") or normalized.startswith("en-")
+    return (
+        normalized in ("en", "eng")
+        or normalized.startswith("en-")
+        or normalized.startswith("english")
+    )
 
 
 def audit_matched_items(items_by_id):
