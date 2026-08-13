@@ -5,7 +5,7 @@ Automated metadata and file maintenance tools for [Audiobookshelf](https://www.a
 ## Tools
 
 ### abs-auto-match
-Scans both the Audiobooks and Ebooks libraries for items missing an ASIN or ISBN and runs Audiobookshelf's quickmatch against them. Supports a primary and fallback metadata provider per library — useful when your primary provider (e.g. a custom Hardcover integration) doesn't have identifiers for every book. Sends items in configurable batches to avoid rate-limiting custom providers. Also supports routing a GraphicAudio subfolder within the audiobooks library to its own provider, since Audible has no data for those titles.
+Scans both the Audiobooks and Ebooks libraries for items missing an ASIN or ISBN and runs Audiobookshelf's quickmatch against them. Supports a primary and fallback metadata provider per library — useful when your primary provider (e.g. a custom Hardcover integration) doesn't have identifiers for every book. Sends items in configurable batches to avoid rate-limiting custom providers. Also supports routing a GraphicAudio subfolder within the audiobooks library to its own provider, since Audible has no data for those titles — these items are searched individually (title tag and part suffix stripped first, since the raw title won't match GraphicAudio's catalog) rather than through the batch quickmatch used for everything else.
 
 ### abs-chapter-match
 Matches chapter data for audiobooks via [Audnexus](https://github.com/laxamentumtech/audnexus) (accessed through the ABS API). Searches for an ASIN if one isn't present, and optionally falls back to using audio tracks as chapters. Supports a `--skip-matched` flag to skip books that already have sufficient chapters on full runs.

@@ -52,6 +52,13 @@ GA_PROVIDER    = os.environ.get("AUTOMATCH_PROVIDER_AUDIOBOOKS_GRAPHICAUDIO")
 GA_PATH_PREFIX = os.environ.get("AUTOMATCH_GRAPHICAUDIO_PATH_PREFIX", "/path/to/audiobooks/GraphicAudio")
 GA_TITLE_RE    = re.compile(r"\[dramati\w*\s*adapt\w*\]", re.IGNORECASE)
 
+# GA titles carry a "(Part X of Y) [Dramatized Adaptation]" suffix that GraphicAudio's
+# own catalog doesn't use, so bulk quickmatch (which searches on the stored title
+# verbatim) never finds them. Strip it before searching instead. Same regexes and
+# disambiguation approach as the one-off abs_match_ga.py cleanup script.
+GA_PART_RE     = re.compile(r"\s*\(part\s*\d+\s*of\s*\d+\)\s*", re.IGNORECASE)
+GA_PART_NUM_RE = re.compile(r"\(part\s*(\d+)\s*of\s*(\d+)\)", re.IGNORECASE)
+
 
 def log(msg, level="INFO"):
     if _LEVELS.get(level, 1) >= _LEVELS.get(LOG_LEVEL, 1):
@@ -101,6 +108,130 @@ def is_graphicaudio_item(item):
             return True
     title = item.get("media", {}).get("metadata", {}).get("title") or ""
     return bool(GA_TITLE_RE.search(title))
+
+
+def ga_search_title(title):
+    t = GA_TITLE_RE.sub("", title)
+    t = GA_PART_RE.sub(" ", t)
+    return re.sub(r"\s+", " ", t).strip(" -")
+
+
+def ga_part_info(title):
+    m = GA_PART_NUM_RE.search(title)
+    if not m:
+        return None, None
+    return int(m.group(1)), int(m.group(2))
+
+
+def ga_part_from_cover(cover_url):
+    if not cover_url:
+        return None, None
+    m = re.search(r"_(\d+)_of_(\d+)(?:\.\w+)?$", cover_url.rstrip("/"))
+    if not m:
+        return None, None
+    return int(m.group(1)), int(m.group(2))
+
+
+def ga_disambiguate(title, candidates):
+    """Resolve multiple search candidates for a split-part GA title, or return
+    None if it can't be resolved cleanly (caller should skip, not guess)."""
+    part_num, part_total = ga_part_info(title)
+    if part_num is None:
+        return None
+
+    cover_matches = [c for c in candidates if ga_part_from_cover(c.get("cover")) == (part_num, part_total)]
+    if len(cover_matches) == 1:
+        return cover_matches[0]
+
+    if len(candidates) != part_total:
+        return None
+    years = [c.get("publishedYear") for c in candidates]
+    if any(y is None for y in years):
+        return None
+    try:
+        sorted_candidates = sorted(candidates, key=lambda c: int(c["publishedYear"]))
+    except (ValueError, TypeError):
+        return None
+    return sorted_candidates[part_num - 1]
+
+
+def ga_search(title, author, provider):
+    resp = requests.get(
+        f"{ABS_HOST}/api/search/books",
+        headers=HEADERS,
+        params={"title": title, "author": author or "", "provider": provider},
+        timeout=30,
+    )
+    resp.raise_for_status()
+    raw = resp.json()
+    if isinstance(raw, list):
+        return raw
+    if isinstance(raw, dict):
+        for key in ("matches", "results", "books"):
+            if key in raw and isinstance(raw[key], list):
+                return raw[key]
+    log(f"GraphicAudio search: unrecognized response shape: {json.dumps(raw)[:300]}", level="WARN")
+    return []
+
+
+def ga_patch_identifiers(item_id, candidate):
+    metadata = {}
+    if candidate.get("asin"):
+        metadata["asin"] = candidate["asin"]
+    if candidate.get("isbn"):
+        metadata["isbn"] = candidate["isbn"]
+    if not metadata:
+        return None
+    resp = requests.patch(
+        f"{ABS_HOST}/api/items/{item_id}/media",
+        headers=HEADERS,
+        json={"metadata": metadata},
+        timeout=30,
+    )
+    resp.raise_for_status()
+    return metadata
+
+
+def match_graphicaudio_items(items, provider):
+    for idx, item in enumerate(items):
+        if idx > 0:
+            time.sleep(2)
+
+        meta = item.get("media", {}).get("metadata", {})
+        title = meta.get("title", item["id"])
+        author = meta.get("authorName", "")
+        search_title = ga_search_title(title)
+
+        log(f"  Searching (GraphicAudio): '{search_title}'", level="DEBUG")
+        try:
+            candidates = ga_search(search_title, author, provider)
+        except requests.RequestException as e:
+            log(f"  GraphicAudio search failed for '{title}': {e}", level="WARN")
+            continue
+
+        if not candidates:
+            log(f"  No GraphicAudio results for '{title}' — skipping", level="WARN")
+            continue
+
+        if len(candidates) == 1:
+            chosen = candidates[0]
+        else:
+            chosen = ga_disambiguate(title, candidates)
+            if chosen is None:
+                log(f"  {len(candidates)} ambiguous GraphicAudio results for '{title}' — "
+                    f"skipping (run abs_match_ga.py manually)", level="WARN")
+                continue
+
+        try:
+            applied = ga_patch_identifiers(item["id"], chosen)
+        except requests.RequestException as e:
+            log(f"  GraphicAudio metadata update failed for '{title}': {e}", level="ERROR")
+            continue
+
+        if applied:
+            log(f"  Matched (GraphicAudio): '{title}' -> {applied}")
+        else:
+            log(f"  GraphicAudio match for '{title}' had no ASIN/ISBN — skipping", level="WARN")
 
 
 def quickmatch(item_ids, provider=None):
@@ -153,11 +284,9 @@ def process_library(name, library_id, full, state):
         to_match = [i for i in to_match if i not in ga_items]
 
         if ga_items:
-            log(f"{len(ga_items)} GraphicAudio item(s) — routing to '{GA_PROVIDER}'")
-            for i in ga_items:
-                title = i.get("media", {}).get("metadata", {}).get("title", i["id"])
-                log(f"  Queuing (GraphicAudio): {title}", level="DEBUG")
-            run_batches([i["id"] for i in ga_items], GA_PROVIDER, "GraphicAudio")
+            log(f"{len(ga_items)} GraphicAudio item(s) — searching '{GA_PROVIDER}' individually "
+                f"(title-tag/part-suffix stripped before search)")
+            match_graphicaudio_items(ga_items, GA_PROVIDER)
 
     if to_match:
         for i in to_match:
