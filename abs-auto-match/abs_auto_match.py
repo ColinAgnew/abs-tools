@@ -190,6 +190,20 @@ def ga_search(title, author, provider):
     return []
 
 
+def ga_extract_narrators(candidate):
+    # abs_match_ga.py's own build_update_payload only ever checked "narrator"
+    # (singular, comma-string) -- but its display helper defensively checked
+    # "narrators" (plural) too, and its docstring flags the response shape as
+    # "not fully confirmed". Accept both key names and both string/list forms
+    # rather than trusting the narrower, self-flagged-as-unverified assumption.
+    narrator = candidate.get("narrator") or candidate.get("narrators")
+    if not narrator:
+        return None
+    if isinstance(narrator, list):
+        return [str(n).strip() for n in narrator if str(n).strip()]
+    return [n.strip() for n in str(narrator).split(",") if n.strip()]
+
+
 def ga_patch_metadata(item_id, candidate, current_meta):
     """Gap-fill only: same fields abs_match_ga.py applies (asin, isbn,
     description, narrators, genres, publishedYear), each sent only if the
@@ -201,8 +215,9 @@ def ga_patch_metadata(item_id, candidate, current_meta):
         metadata["isbn"] = candidate["isbn"]
     if candidate.get("description") and not current_meta.get("description"):
         metadata["description"] = candidate["description"]
-    if candidate.get("narrator") and not current_meta.get("narrators"):
-        metadata["narrators"] = [n.strip() for n in candidate["narrator"].split(",") if n.strip()]
+    narrators = ga_extract_narrators(candidate)
+    if narrators and not current_meta.get("narrators"):
+        metadata["narrators"] = narrators
     if candidate.get("genres") and not current_meta.get("genres"):
         metadata["genres"] = candidate["genres"]
     if candidate.get("publishedYear") and not current_meta.get("publishedYear"):
